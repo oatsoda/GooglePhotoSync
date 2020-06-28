@@ -11,8 +11,11 @@ namespace GooglePhotoSync.Local
 
         public List<LocalPhotoAlbum> PhotoAlbums { get; private set; }
 
-        private int? m_TotalPhotos;
-        public int TotalFiles => m_TotalPhotos ?? (m_TotalPhotos = PhotoAlbums.Sum(a => a.Files.Count)).Value;
+        private int? m_TotalFiles;
+        public int TotalFiles => m_TotalFiles ?? (m_TotalFiles = PhotoAlbums.Sum(a => a.TotalFiles)).Value;
+        
+        private long? m_TotalBytes;
+        public long TotalBytes => m_TotalBytes ?? (m_TotalBytes = PhotoAlbums.Sum(a => a.TotalBytes)).Value;
 
         public LocalSource(IOptions<LocalSettings> localSettings)
         {
@@ -29,9 +32,15 @@ namespace GooglePhotoSync.Local
 
     public class LocalPhotoAlbum
     {
-        private DirectoryInfo m_Dir;
+        private readonly DirectoryInfo m_Dir;
 
+        public string Name => m_Dir.Name;
         public List<LocalFile> Files { get; }
+        
+        public int TotalFiles => Files.Count;
+
+        private long? m_TotalBytes;
+        public long TotalBytes => m_TotalBytes ?? (m_TotalBytes = Files.Sum(f => f.Bytes)).Value;
 
         public LocalPhotoAlbum(DirectoryInfo dir)
         {
@@ -45,7 +54,9 @@ namespace GooglePhotoSync.Local
 
     public class LocalFile
     {
-        private FileInfo m_File;
+        private readonly FileInfo m_File;
+
+        public long Bytes => m_File.Length;
 
         public LocalFile(FileInfo file)
         {

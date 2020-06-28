@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using GooglePhotoSync.Google;
 using GooglePhotoSync.Google.Api;
 using GooglePhotoSync.Local;
+using GooglePhotoSync.Sync;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,10 @@ namespace GooglePhotoSync
                 
                           .AddTransient<LocalSource>()
                           .AddTransient<GoogleSource>()
+
+                          .AddTransient<CollectionSync>()
+                          .AddTransient<AlbumSync>()
+                          .AddSingleton<Func<AlbumSync>>(sp => sp.GetService<AlbumSync>)
                 
                           .Configure<GoogleSettings>(configuration.GetSection(nameof(GoogleSettings)))
                           .Configure<LocalSettings>(configuration.GetSection(nameof(LocalSettings)));

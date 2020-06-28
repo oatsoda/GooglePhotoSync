@@ -23,11 +23,11 @@ namespace GooglePhotoSync.Google.Api
 
     public class GetAlbumsResponse
     {
-        public Album[] Albums { get; set; }
+        public GoogleAlbum[] Albums { get; set; }
         public string NextPageToken { get; set; }
     }
 
-    public class Album
+    public class GoogleAlbum
     {
         public string Id { get; set; }
         public string Title {  get; set; }

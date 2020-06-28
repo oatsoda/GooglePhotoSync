@@ -8,7 +8,7 @@ namespace GooglePhotoSync.Google
     {
         private readonly IGooglePhotosApi m_GooglePhotosApi;
 
-        public List<Album> Albums { get; private set; }
+        public List<GoogleAlbum> Albums { get; private set; }
 
         public GoogleSource(IGooglePhotosApi googlePhotosApi)
         {
@@ -17,7 +17,7 @@ namespace GooglePhotoSync.Google
 
         public async Task Load()
         {
-            var albums = new List<Album>();
+            var albums = new List<GoogleAlbum>();
 
             GetAlbumsResponse response;
             string pageToken = null;

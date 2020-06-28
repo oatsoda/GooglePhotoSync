@@ -12,3 +12,8 @@ Album Name 2/photo2.jpg
 
 # Local development
 Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in your settings.
+
+# TODO
+
+- Local (encrypted) token cache to save logging in every time
+- Auto renew token when expired using refresh token

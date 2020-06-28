@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using GooglePhotoSync.Google;
 using GooglePhotoSync.Local;
+using GooglePhotoSync.Sync;
 using Microsoft.Extensions.Logging;
 
 namespace GooglePhotoSync
@@ -10,13 +11,19 @@ namespace GooglePhotoSync
         private readonly IGoogleBearerTokenRetriever m_GoogleBearerTokenRetriever;
         private readonly LocalSource m_LocalSource;
         private readonly GoogleSource m_GoogleSource;
+        private readonly CollectionSync m_CollectionSync;
         private readonly ILogger<SyncPhotos> m_Logger;
 
-        public SyncPhotos(IGoogleBearerTokenRetriever googleBearerTokenRetriever, LocalSource localSource, GoogleSource googleSource, ILogger<SyncPhotos> logger)
+        public SyncPhotos(IGoogleBearerTokenRetriever googleBearerTokenRetriever, 
+                          LocalSource localSource, 
+                          GoogleSource googleSource,
+                          CollectionSync collectionSync,
+                          ILogger<SyncPhotos> logger)
         {
             m_GoogleBearerTokenRetriever = googleBearerTokenRetriever;
             m_LocalSource = localSource;
             m_GoogleSource = googleSource;
+            m_CollectionSync = collectionSync;
             m_Logger = logger;
         }
 
@@ -24,7 +31,7 @@ namespace GooglePhotoSync
         {
             if (!await m_GoogleBearerTokenRetriever.Init())
                 return;
-            
+
             m_Logger.LogInformation("Loading Google Albums");
             await m_GoogleSource.Load();
             m_Logger.LogInformation($"Total Albums: {m_GoogleSource.Albums.Count}");
@@ -34,13 +41,17 @@ namespace GooglePhotoSync
             m_Logger.LogInformation($"Total Albums: {m_LocalSource.PhotoAlbums.Count}");
             m_Logger.LogInformation($"Total Files: {m_LocalSource.TotalFiles}");
 
-            // TODO: Sync
+            m_Logger.LogInformation("Comparing");
+            var collectionDiff = new CollectionDiff(m_LocalSource, m_GoogleSource);
+            m_Logger.LogInformation(collectionDiff.ToString());
+            m_Logger.LogInformation("Syncing");
+            await m_CollectionSync.SyncCollection(collectionDiff);
         }
 
         /*
         SYNC THOUGHTS
 
-        1. Retrieva all Folders and FileInfos from local store.
+        1. Retrieve all Folders and FileInfos from local store.
         2. Retrieve all Albums from Google (which includes number of items)
         3. Match Albums by name
         4. For matching Albums, compare file counts
