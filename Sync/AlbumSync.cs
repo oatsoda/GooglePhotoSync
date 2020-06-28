@@ -18,14 +18,26 @@ namespace GooglePhotoSync.Sync
 
         public async Task SyncAlbum(LocalPhotoAlbum local, GoogleAlbum album)
         {
-            if (album == null)
-                album = await CreateAlbum(local.Name);
+            album ??= await CreateAlbum(local.Name);
 
+            await SyncFiles(local, album);
         }
 
         private async Task<GoogleAlbum> CreateAlbum(string albumName)
         {
-            return await Task.FromResult((GoogleAlbum)null);
+            m_Logger.LogDebug($"Creating album '{albumName}'");
+            return await m_GooglePhotosApi.CreateAlbum(new PostAlbumRequest
+                                                       {
+                                                           album = new PostAlbumRequest.NewAlbum
+                                                                   {
+                                                                       title = albumName
+                                                                   }
+                                                       });
+        }
+
+        private async Task SyncFiles(LocalPhotoAlbum local, GoogleAlbum album)
+        {
+
         }
     }
 }

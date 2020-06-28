@@ -7,6 +7,7 @@ namespace GooglePhotoSync.Local
 {
     public class LocalSource
     {
+        private readonly LocalSettings m_LocalSettings;
         private readonly DirectoryInfo m_RootDir;
 
         public List<LocalPhotoAlbum> PhotoAlbums { get; private set; }
@@ -19,14 +20,22 @@ namespace GooglePhotoSync.Local
 
         public LocalSource(IOptions<LocalSettings> localSettings)
         {
+            m_LocalSettings = localSettings.Value;
             m_RootDir = new DirectoryInfo(localSettings.Value.LocalFolderRoot);
         }
 
         public void Load()
         {
             PhotoAlbums = m_RootDir.EnumerateDirectories()
+                                   .Where(IsNotIgnored)
                                    .Select(d => new LocalPhotoAlbum(d))
                                    .ToList();
+        }
+
+        private bool IsNotIgnored(DirectoryInfo dir)
+        {
+            var name = dir.Name;
+            return !m_LocalSettings.IgnoreFolderStartingWith.Any(s => name.StartsWith(s));
         }
     }
 
