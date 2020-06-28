@@ -8,29 +8,31 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
 namespace GooglePhotoSync.Google
 {
+    // Code based on https://github.com/googlesamples/oauth-apps-for-windows/blob/master/OAuthConsoleApp/OAuthConsoleApp/Program.cs
     public class GoogleLogin
     {
-        // client configuration
-        private readonly string clientID;
-        private readonly string clientSecret;
+        private const string _AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
+        private const string _TOKEN_ENDPOINT = "https://www.googleapis.com/oauth2/v4/token";
+        
+        private readonly string m_ClientId;
+        private readonly string m_ClientSecret;
+        private readonly ILogger<GoogleLogin> m_Logger;
 
-        const string authorizationEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
-        const string tokenEndpoint = "https://www.googleapis.com/oauth2/v4/token";
-        const string userInfoEndpoint = "https://www.googleapis.com/oauth2/v3/userinfo";
-
-        public GoogleLogin(IOptions<GoogleSettings> googleSettings)
+        public GoogleLogin(IOptions<GoogleSettings> googleSettings, ILogger<GoogleLogin> logger)
         {
-            clientID = googleSettings.Value.GoogleClientId;
-            clientSecret = googleSettings.Value.GoogleClientSecret;
+            m_ClientId = googleSettings.Value.GoogleClientId;
+            m_ClientSecret = googleSettings.Value.GoogleClientSecret;
+            m_Logger = logger;
         }
 
         // ref http://stackoverflow.com/a/3978040
-        public static int GetRandomUnusedPort()
+        private static int GetRandomUnusedPort()
         {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
@@ -39,22 +41,22 @@ namespace GooglePhotoSync.Google
             return port;
         }
 
-        public async Task<string> doOAuth(params string[] additionalScopes)
+        public async Task<string> DoOAuth(params string[] additionalScopes)
         {
             // Generates state and PKCE values.
-            string state = randomDataBase64url(32);
-            string code_verifier = randomDataBase64url(32);
-            string code_challenge = base64urlencodeNoPadding(sha256(code_verifier));
-            const string code_challenge_method = "S256";
+            var state = RandomDataBase64Url(32);
+            var codeVerifier = RandomDataBase64Url(32);
+            var codeChallenge = Base64UrlencodeNoPadding(Sha256(codeVerifier));
+            const string codeChallengeMethod = "S256";
 
             // Creates a redirect URI using an available port on the loopback address.
-            string redirectURI = string.Format("http://{0}:{1}/", IPAddress.Loopback, GetRandomUnusedPort());
-            output("redirect URI: " + redirectURI);
+            var redirectUri = $"http://{IPAddress.Loopback}:{GetRandomUnusedPort()}/";
+            Output("redirect URI: " + redirectUri);
 
             // Creates an HttpListener to listen for requests on that redirect URI.
             var http = new HttpListener();
-            http.Prefixes.Add(redirectURI);
-            output("Listening..");
+            http.Prefixes.Add(redirectUri);
+            Output("Listening..");
             http.Start();
 
             // Creates the OAuth 2.0 authorization request.
@@ -62,25 +64,22 @@ namespace GooglePhotoSync.Google
             if (!string.IsNullOrEmpty(addScopes))
                 addScopes = $"%20{addScopes}";
 
-            string authorizationRequest = string.Format("{0}?response_type=code&scope=openid%20profile{6}&redirect_uri={1}&client_id={2}&state={3}&code_challenge={4}&code_challenge_method={5}",
-                                                        authorizationEndpoint,
-                                                        Uri.EscapeDataString(redirectURI),
-                                                        clientID,
-                                                        state,
-                                                        code_challenge,
-                                                        code_challenge_method,
-                                                        addScopes);
+            var authorizationRequest = string.Format("{0}?response_type=code&scope=openid%20profile{6}&redirect_uri={1}&client_id={2}&state={3}&code_challenge={4}&code_challenge_method={5}",
+                                                     _AUTHORIZATION_ENDPOINT,
+                                                     Uri.EscapeDataString(redirectUri),
+                                                     m_ClientId,
+                                                     state,
+                                                     codeChallenge,
+                                                     codeChallengeMethod,
+                                                     addScopes);
 
             // Opens request in the browser.
-
             var ps = new System.Diagnostics.ProcessStartInfo(authorizationRequest)
                      {
-                         UseShellExecute = true,
+                         UseShellExecute = true, // Doesn't work without this - but makes it only work on Windows
                          Verb = "open"
                      };
             System.Diagnostics.Process.Start(ps);
-
-            //System.Diagnostics.Process.Start(authorizationRequest);
 
             // Waits for the OAuth authorization response.
             var context = await http.GetContextAsync();
@@ -90,144 +89,111 @@ namespace GooglePhotoSync.Google
 
             // Sends an HTTP response to the browser.
             var response = context.Response;
-            string responseString = string.Format("<html><head><meta http-equiv='refresh' content='10;url=https://google.com'></head><body>Please return to the app.</body></html>");
-            var buffer = System.Text.Encoding.UTF8.GetBytes(responseString);
+            const string responseString = "<html><head><meta http-equiv='refresh' content='10;url=https://google.com'></head><body>Please return to the app.</body></html>";
+            var buffer = Encoding.UTF8.GetBytes(responseString);
             response.ContentLength64 = buffer.Length;
             var responseOutput = response.OutputStream;
-            Task responseTask = responseOutput.WriteAsync(buffer, 0, buffer.Length).ContinueWith((task) =>
-                                                                                                 {
-                                                                                                     responseOutput.Close();
-                                                                                                     http.Stop();
-                                                                                                     Console.WriteLine("HTTP server stopped.");
-                                                                                                 });
+            await responseOutput.WriteAsync(buffer, 0, buffer.Length).ContinueWith(task =>
+                                                                                   {
+                                                                                       responseOutput.Close();
+                                                                                       http.Stop();
+                                                                                       Output("HTTP server stopped.");
+                                                                                   });
 
             // Checks for errors.
             if (context.Request.QueryString.Get("error") != null)
             {
-                output(String.Format("OAuth authorization error: {0}.", context.Request.QueryString.Get("error")));
+                Output($"OAuth authorization error: {context.Request.QueryString.Get("error")}.");
                 return null;
             }
+
             if (context.Request.QueryString.Get("code") == null
                 || context.Request.QueryString.Get("state") == null)
             {
-                output("Malformed authorization response. " + context.Request.QueryString);
+                Output("Malformed authorization response. " + context.Request.QueryString);
                 return null;
             }
 
             // extracts the code
             var code = context.Request.QueryString.Get("code");
-            var incoming_state = context.Request.QueryString.Get("state");
+            var incomingState = context.Request.QueryString.Get("state");
 
             // Compares the receieved state to the expected value, to ensure that
             // this app made the request which resulted in authorization.
-            if (incoming_state != state)
+            if (incomingState != state)
             {
-                output(String.Format("Received request with invalid state ({0})", incoming_state));
+                Output($"Received request with invalid state ({incomingState})");
                 return null;
             }
-            output("Authorization code: " + code);
+
+            Output("Authorization code: " + code);
 
             // Starts the code exchange at the Token Endpoint.
-            return await performCodeExchange(code, code_verifier, redirectURI);
+            return await PerformCodeExchange(code, codeVerifier, redirectUri);
         }
 
-        async Task<string> performCodeExchange(string code, string code_verifier, string redirectURI)
+        async Task<string> PerformCodeExchange(string code, string codeVerifier, string redirectUri)
         {
-            output("Exchanging code for tokens...");
+            Output("Exchanging code for tokens...");
 
             // builds the  request
-            //string tokenRequestURI = "https://www.googleapis.com/oauth2/v4/token";
-            string tokenRequestBody = string.Format("code={0}&redirect_uri={1}&client_id={2}&code_verifier={3}&client_secret={4}&scope=&grant_type=authorization_code",
-                                                    code,
-                                                    System.Uri.EscapeDataString(redirectURI),
-                                                    clientID,
-                                                    code_verifier,
-                                                    clientSecret
-                                                   );
+            // ReSharper disable once UseStringInterpolation
+            var tokenRequestBody = string.Format("code={0}&redirect_uri={1}&client_id={2}&code_verifier={3}&client_secret={4}&scope=&grant_type=authorization_code",
+                                                 code,
+                                                 Uri.EscapeDataString(redirectUri),
+                                                 m_ClientId,
+                                                 codeVerifier,
+                                                 m_ClientSecret
+                                                );
 
             // sends the request
-            HttpWebRequest tokenRequest = (HttpWebRequest)WebRequest.Create(tokenEndpoint);
+            var tokenRequest = (HttpWebRequest)WebRequest.Create(_TOKEN_ENDPOINT);
             tokenRequest.Method = "POST";
             tokenRequest.ContentType = "application/x-www-form-urlencoded";
             tokenRequest.Accept = "Accept=text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
-            byte[] _byteVersion = Encoding.ASCII.GetBytes(tokenRequestBody);
-            tokenRequest.ContentLength = _byteVersion.Length;
-            Stream stream = tokenRequest.GetRequestStream();
-            await stream.WriteAsync(_byteVersion, 0, _byteVersion.Length);
+            var byteVersion = Encoding.ASCII.GetBytes(tokenRequestBody);
+            tokenRequest.ContentLength = byteVersion.Length;
+            var stream = tokenRequest.GetRequestStream();
+            await stream.WriteAsync(byteVersion, 0, byteVersion.Length);
             stream.Close();
 
             try
             {
                 // gets the response
-                WebResponse tokenResponse = await tokenRequest.GetResponseAsync();
-                using (StreamReader reader = new StreamReader(tokenResponse.GetResponseStream()))
-                {
-                    // reads response body
-                    string responseText = await reader.ReadToEndAsync();
-                    Console.WriteLine(responseText);
+                var tokenResponse = await tokenRequest.GetResponseAsync();
 
-                    // converts to dictionary
-                    Dictionary<string, string> tokenEndpointDecoded = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseText);
+                // ReSharper disable once AssignNullToNotNullAttribute
+                using var reader = new StreamReader(tokenResponse.GetResponseStream());
+                // reads response body
+                var responseText = await reader.ReadToEndAsync();
+                Output(responseText);
 
-                    string access_token = tokenEndpointDecoded["access_token"];
-                    //userinfoCall(access_token);
-                    return access_token;
-                }
+                // converts to dictionary
+                var tokenEndpointDecoded = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseText);
+
+                return tokenEndpointDecoded["access_token"];
             }
             catch (WebException ex)
             {
-                if (ex.Status == WebExceptionStatus.ProtocolError)
-                {
-                    var response = ex.Response as HttpWebResponse;
-                    if (response != null)
-                    {
-                        output("HTTP: " + response.StatusCode);
-                        using (StreamReader reader = new StreamReader(response.GetResponseStream()))
-                        {
-                            // reads response body
-                            string responseText = await reader.ReadToEndAsync();
-                            output(responseText);
-                        }
-                    }
+                if (ex.Status != WebExceptionStatus.ProtocolError)
+                    return null;
 
-                }
+                if (!(ex.Response is HttpWebResponse response))
+                    return null;
+
+                Output("HTTP: " + response.StatusCode);
+                // ReSharper disable once AssignNullToNotNullAttribute
+                using var reader = new StreamReader(response.GetResponseStream());
+                var responseText = await reader.ReadToEndAsync();
+                Output(responseText);
             }
 
             return null;
         }
 
-
-        async void userinfoCall(string access_token)
+        private void Output(string output)
         {
-            output("Making API Call to Userinfo...");
-
-            // builds the  request
-            //string userinfoRequestURI = "https://www.googleapis.com/oauth2/v3/userinfo";
-
-            // sends the request
-            HttpWebRequest userinfoRequest = (HttpWebRequest)WebRequest.Create(userInfoEndpoint);
-            userinfoRequest.Method = "GET";
-            userinfoRequest.Headers.Add(string.Format("Authorization: Bearer {0}", access_token));
-            userinfoRequest.ContentType = "application/x-www-form-urlencoded";
-            userinfoRequest.Accept = "Accept=text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
-
-            // gets the response
-            WebResponse userinfoResponse = await userinfoRequest.GetResponseAsync();
-            using (StreamReader userinfoResponseReader = new StreamReader(userinfoResponse.GetResponseStream()))
-            {
-                // reads response body
-                string userinfoResponseText = await userinfoResponseReader.ReadToEndAsync();
-                output(userinfoResponseText);
-            }
-        }
-
-        /// <summary>
-        /// Appends the given string to the on-screen log, and the debug console.
-        /// </summary>
-        /// <param name="output">string to be appended</param>
-        public void output(string output)
-        {
-            Console.WriteLine(output);
+            m_Logger.LogDebug(output);
         }
 
         /// <summary>
@@ -235,23 +201,21 @@ namespace GooglePhotoSync.Google
         /// </summary>
         /// <param name="length">Input length (nb. output will be longer)</param>
         /// <returns></returns>
-        public static string randomDataBase64url(uint length)
+        private static string RandomDataBase64Url(uint length)
         {
-            RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
-            byte[] bytes = new byte[length];
+            var rng = new RNGCryptoServiceProvider();
+            var bytes = new byte[length];
             rng.GetBytes(bytes);
-            return base64urlencodeNoPadding(bytes);
+            return Base64UrlencodeNoPadding(bytes);
         }
 
         /// <summary>
         /// Returns the SHA256 hash of the input string.
         /// </summary>
-        /// <param name="inputStirng"></param>
-        /// <returns></returns>
-        public static byte[] sha256(string inputStirng)
+        private static byte[] Sha256(string input)
         {
-            byte[] bytes = Encoding.ASCII.GetBytes(inputStirng);
-            SHA256Managed sha256 = new SHA256Managed();
+            var bytes = Encoding.ASCII.GetBytes(input);
+            var sha256 = new SHA256Managed();
             return sha256.ComputeHash(bytes);
         }
 
@@ -260,9 +224,9 @@ namespace GooglePhotoSync.Google
         /// </summary>
         /// <param name="buffer"></param>
         /// <returns></returns>
-        public static string base64urlencodeNoPadding(byte[] buffer)
+        private static string Base64UrlencodeNoPadding(byte[] buffer)
         {
-            string base64 = Convert.ToBase64String(buffer);
+            var base64 = Convert.ToBase64String(buffer);
 
             // Converts base64 to base64url.
             base64 = base64.Replace("+", "-");
@@ -283,10 +247,9 @@ namespace GooglePhotoSync.Google
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
 
-        public void BringConsoleToFront()
+        public static void BringConsoleToFront()
         {
             SetForegroundWindow(GetConsoleWindow());
         }
-
     }
 }
