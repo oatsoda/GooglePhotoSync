@@ -18,12 +18,16 @@ namespace GooglePhotoSync
             var configuration = LoadConfiguration();
 
             var services = new ServiceCollection()
-                          .AddLogging(builder => { builder.AddConsole(); })
+                          .AddLogging(builder =>
+                                      {
+                                          builder.AddConfiguration(configuration.GetSection("Logging"));
+                                          builder.AddConsole();
+                                      })
                           .AddSingleton<GoogleSettings>()
                           .AddTransient<SyncPhotos>()
 
                           .AddSingleton<GoogleLogin>()
-                          .AddSingleton<AuthenticatedHttpClientHandler>()
+                          .AddTransient<AuthenticatedHttpClientHandler>()
                           .AddSingleton<IGoogleBearerTokenRetriever, GoogleBearerTokenRetriever>()
                 
                           .AddTransient<LocalSource>()

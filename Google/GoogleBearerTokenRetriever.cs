@@ -24,6 +24,7 @@ namespace GooglePhotoSync.Google
 
         public async Task<bool> Init()
         {
+            m_Logger.LogDebug("Debug Check");
             m_Logger.LogInformation("Authenticating");
             m_CurrentToken = await m_GoogleLogin.DoOAuth(m_GoogleScope);
             if (m_CurrentToken == null)

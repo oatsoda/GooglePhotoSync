@@ -67,9 +67,20 @@ namespace GooglePhotoSync.Local
 
         public long Bytes => m_File.Length;
 
+        private string m_MimeType;
+        public string MimeType => m_MimeType ??= MimeTypes.GetMimeType(m_File.Extension);
+
+        public string FilePath => m_File.FullName;
+        public string FileName => m_File.Name;
+
         public LocalFile(FileInfo file)
         {
             m_File = file;
+        }
+
+        public Stream OpenStream()
+        {
+            return m_File.OpenRead();
         }
     }
 }

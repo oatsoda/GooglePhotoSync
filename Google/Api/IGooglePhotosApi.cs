@@ -16,9 +16,6 @@ namespace GooglePhotoSync.Google.Api
         [Post("/v1/albums")]
         Task<GoogleAlbum> CreateAlbum([Body]PostAlbumRequest request);
         
-        [Post("/v1/albums/{albumId}:batchAddMediaItems")]
-        Task<GoogleAlbum> AddMediaItemsToAlbum(string albumId, [Body]AddMediaItemsToAlbumRequest request);
-
         /* Uploads */
         
         [Post("/v1/uploads")]
@@ -34,6 +31,7 @@ namespace GooglePhotoSync.Google.Api
         Task<SearchMediaItemsResponse> SearchMediaItems([Body]SearchMediaItemsRequest request);
     }
 
+    // TODO: Tidy this up
     
     public class GetAlbumsRequest
     {
@@ -55,11 +53,6 @@ namespace GooglePhotoSync.Google.Api
         {
             public string title { get; set; }
         }
-    }
-
-    public class AddMediaItemsToAlbumRequest
-    {
-        public List<string> mediaItemIds { get; set; } = new List<string>();
     }
 
     public class BatchCreateMediaItemsRequest

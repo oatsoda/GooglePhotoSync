@@ -6,12 +6,12 @@ namespace GooglePhotoSync.Sync
 {
     public class CollectionSync
     {
-        private readonly Func<AlbumSync> m_Factory;
+        private readonly Func<AlbumSync> m_SyncFactory;
         private readonly ILogger<CollectionSync> m_Logger;
 
-        public CollectionSync(Func<AlbumSync> factory, ILogger<CollectionSync> logger)
+        public CollectionSync(Func<AlbumSync> syncFactory, ILogger<CollectionSync> logger)
         {
-            m_Factory = factory;
+            m_SyncFactory = syncFactory;
             m_Logger = logger;
         }
 
@@ -20,14 +20,14 @@ namespace GooglePhotoSync.Sync
             foreach (var partial in diff.PartialSyncedAlbums)
             {
                 m_Logger.LogInformation($"Syncing partial: '{partial.Local.Name}' (Local: {partial.Local.TotalFiles} [{partial.Local.TotalBytes.AsHumanReadableBytes("MB")}], Google: {partial.Google.MediaItemsCount})");
-                var sync = m_Factory();
+                var sync = m_SyncFactory();
                 await sync.SyncAlbum(partial.Local, partial.Google);
             }
 
             foreach (var local in diff.NeverSyncedAlbums)
             {
                 m_Logger.LogInformation($"Syncing never synced: '{local.Name}' {local.TotalFiles} [{local.TotalBytes.AsHumanReadableBytes("MB")}]");
-                var sync = m_Factory();
+                var sync = m_SyncFactory();
                 await sync.SyncAlbum(local, null);
             }
         }
