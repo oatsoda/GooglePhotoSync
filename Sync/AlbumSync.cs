@@ -51,7 +51,7 @@ namespace GooglePhotoSync.Sync
             var totalSuccessfulUploads = 0;
             foreach (var file in localAlbum.Files.OrderBy(f => f.FileName))
             {
-                m_Logger.LogDebug($"Uploading [{file.Bytes.AsHumanReadableBytes("KB")}KB] {file.FilePath}");
+                m_Logger.LogDebug($"Uploading [{file.Bytes.AsHumanReadableBytes("KB")}] {file.ShortFilePath}");
                 var uploadToken = await m_GooglePhotosApi.UploadFile(file.OpenStream(), file.MimeType);
                 uploaded.Add(new UploadedFile(file, new BatchCreateMediaItemRequest
                                                     {
@@ -69,6 +69,7 @@ namespace GooglePhotoSync.Sync
                     totalSuccessfulUploads += await CreateMediateItemsBatch(localAlbum, googleAlbum, uploaded);
                     filesInCurrentBatch = 0;
                     uploaded.Clear();
+                    m_Logger.LogInformation($"{totalSuccessfulUploads} of {localAlbum.TotalFiles} uploaded.");
                 }
             }
 

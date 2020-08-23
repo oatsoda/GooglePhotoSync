@@ -60,8 +60,8 @@ namespace GooglePhotoSync.Local
             m_LocalSettings = localSettings;
 
             Files = m_Dir.EnumerateFiles()
-                         .Where(IsNotIgnored)
-                         .Select(f => new LocalFile(f, localSettings))
+                         .Where(f => IsNotIgnored(f) && f.Length <= localSettings.MaxFileSizeBytes) // TODO: Temp size filter - think large files need splitting
+                         .Select(f => new LocalFile(f, localSettings, this))
                          .ToList();
         }
 
@@ -77,6 +77,7 @@ namespace GooglePhotoSync.Local
     {
         private readonly FileInfo m_File;
         private readonly LocalSettings m_LocalSettings;
+        private readonly LocalPhotoAlbum m_Parent;
 
         public long Bytes => m_File.Length;
 
@@ -88,11 +89,13 @@ namespace GooglePhotoSync.Local
 
         public string FilePath => m_File.FullName;
         public string FileName => m_File.Name;
+        public string ShortFilePath => $"{m_Parent.Name}\\{FileName}";
 
-        public LocalFile(FileInfo file, LocalSettings localSettings)
+        public LocalFile(FileInfo file, LocalSettings localSettings, LocalPhotoAlbum parent)
         {
             m_File = file;
             m_LocalSettings = localSettings;
+            m_Parent = parent;
         }
 
         public Stream OpenStream()

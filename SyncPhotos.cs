@@ -40,6 +40,7 @@ namespace GooglePhotoSync
             m_LocalSource.Load();
             m_Logger.LogInformation($"Total Albums: {m_LocalSource.PhotoAlbums.Count}");
             m_Logger.LogInformation($"Total Files: {m_LocalSource.TotalFiles}");
+            m_Logger.LogInformation($"Total Size: {m_LocalSource.TotalBytes.AsHumanReadableBytes("MB")}");
 
             m_Logger.LogInformation("Comparing");
             var collectionDiff = new CollectionDiff(m_LocalSource, m_GoogleSource);
