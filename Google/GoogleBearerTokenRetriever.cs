@@ -9,7 +9,7 @@ namespace GooglePhotoSync.Google
     {
         private bool m_IsInit;
 
-        private string m_CurrentToken;
+        private GoogleAuthState m_CurrentAuthState;
 
         private readonly GoogleLogin m_GoogleLogin;
         private readonly string m_GoogleScope;
@@ -26,8 +26,8 @@ namespace GooglePhotoSync.Google
         {
             m_Logger.LogDebug("Debug Check");
             m_Logger.LogInformation("Authenticating");
-            m_CurrentToken = await m_GoogleLogin.DoOAuth(m_GoogleScope);
-            if (m_CurrentToken == null)
+            m_CurrentAuthState = await m_GoogleLogin.DoOAuth(m_GoogleScope);
+            if (m_CurrentAuthState == null)
             {
                 m_Logger.LogError("Authentication Failed");
                 return false;
@@ -43,8 +43,10 @@ namespace GooglePhotoSync.Google
             if (!m_IsInit)
                 throw new InvalidOperationException($"{GetType().Name} must be initialised before first usage. Ensure you call {nameof(Init)}() first");;
 
-            // TODO: Implement token expiry and refresh
-            return await Task.FromResult(m_CurrentToken); 
+            if (m_CurrentAuthState.IsExpiring())
+                m_CurrentAuthState = await m_GoogleLogin.GetNewAccessToken(m_CurrentAuthState);
+            
+            return await Task.FromResult(m_CurrentAuthState.AccessToken); 
         }
     }
 }

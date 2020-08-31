@@ -15,6 +15,7 @@ using Newtonsoft.Json;
 namespace GooglePhotoSync.Google
 {
     // Code based on https://github.com/googlesamples/oauth-apps-for-windows/blob/master/OAuthConsoleApp/OAuthConsoleApp/Program.cs
+    // Changed return type from string to GoogleAuthState. Added GetNewAccessToken method for using refresh token.
     public class GoogleLogin
     {
         private const string _AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -41,7 +42,7 @@ namespace GooglePhotoSync.Google
             return port;
         }
 
-        public async Task<string> DoOAuth(params string[] additionalScopes)
+        public async Task<GoogleAuthState> DoOAuth(params string[] additionalScopes)
         {
             // Generates state and PKCE values.
             var state = RandomDataBase64Url(32);
@@ -132,7 +133,7 @@ namespace GooglePhotoSync.Google
             return await PerformCodeExchange(code, codeVerifier, redirectUri);
         }
 
-        async Task<string> PerformCodeExchange(string code, string codeVerifier, string redirectUri)
+        async Task<GoogleAuthState> PerformCodeExchange(string code, string codeVerifier, string redirectUri)
         {
             Output("Exchanging code for tokens...");
 
@@ -171,7 +172,70 @@ namespace GooglePhotoSync.Google
                 // converts to dictionary
                 var tokenEndpointDecoded = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseText);
 
-                return tokenEndpointDecoded["access_token"];
+                return new GoogleAuthState(tokenEndpointDecoded["access_token"],
+                                           int.Parse(tokenEndpointDecoded["expires_in"]),
+                                           tokenEndpointDecoded["refresh_token"]
+                                          );
+            }
+            catch (WebException ex)
+            {
+                if (ex.Status != WebExceptionStatus.ProtocolError)
+                    return null;
+
+                if (!(ex.Response is HttpWebResponse response))
+                    return null;
+
+                Output("HTTP: " + response.StatusCode);
+                // ReSharper disable once AssignNullToNotNullAttribute
+                using var reader = new StreamReader(response.GetResponseStream());
+                var responseText = await reader.ReadToEndAsync();
+                Output(responseText);
+            }
+
+            return null;
+        }
+
+        public async Task<GoogleAuthState> GetNewAccessToken(GoogleAuthState googleAuthState)
+        {
+            Output("Getting new access token via refresh token...");
+
+            // builds the  request
+            // ReSharper disable once UseStringInterpolation
+            var tokenRequestBody = string.Format("client_id={0}&client_secret={1}&refresh_token={2}&grant_type=refresh_token",
+                                                 m_ClientId,
+                                                 m_ClientSecret,
+                                                 googleAuthState.RefreshToken
+                                                );
+
+            // sends the request
+            var tokenRequest = (HttpWebRequest)WebRequest.Create(_TOKEN_ENDPOINT);
+            tokenRequest.Method = "POST";
+            tokenRequest.ContentType = "application/x-www-form-urlencoded";
+            tokenRequest.Accept = "Accept=text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+            var byteVersion = Encoding.ASCII.GetBytes(tokenRequestBody);
+            tokenRequest.ContentLength = byteVersion.Length;
+            var stream = tokenRequest.GetRequestStream();
+            await stream.WriteAsync(byteVersion, 0, byteVersion.Length);
+            stream.Close();
+
+            try
+            {
+                // gets the response
+                var tokenResponse = await tokenRequest.GetResponseAsync();
+
+                // ReSharper disable once AssignNullToNotNullAttribute
+                using var reader = new StreamReader(tokenResponse.GetResponseStream());
+                // reads response body
+                var responseText = await reader.ReadToEndAsync();
+                Output(responseText);
+
+                // converts to dictionary
+                var tokenEndpointDecoded = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseText);
+
+                return new GoogleAuthState(tokenEndpointDecoded["access_token"],
+                                           int.Parse(tokenEndpointDecoded["expires_in"]),
+                                           googleAuthState.RefreshToken
+                                          );
             }
             catch (WebException ex)
             {
