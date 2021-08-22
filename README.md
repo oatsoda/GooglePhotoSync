@@ -26,6 +26,7 @@ Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in yo
 
 - Client ID and Secret from App created in Google console https://console.cloud.google.com/apis/api/
 - Add "Photos Library API"
+- App startup will ask you to login and give permission.
 
 # Diff/Sync Logic
 
