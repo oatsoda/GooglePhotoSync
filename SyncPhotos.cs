@@ -47,6 +47,7 @@ namespace GooglePhotoSync
             m_Logger.LogInformation(collectionDiff.ToString());
             m_Logger.LogInformation("Syncing");
             await m_CollectionSync.SyncCollection(collectionDiff);
+            m_Logger.LogInformation("Finished. Exiting...");
         }
 
         /*
