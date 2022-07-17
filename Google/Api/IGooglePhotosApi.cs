@@ -128,7 +128,7 @@ namespace GooglePhotoSync.Google.Api
         public string Title {  get; set; }
         public string ProductUrl {  get; set; }
         public bool IsWriteable { get; set; }
-        public int MediaItemsCount { get; set; }
+        public string MediaItemsCount { get; set; }
         public string CoverPhotoBaseUrl { get; set; }
         public string CoverPhotoMediaItemId { get; set; }
         // ShareInfo

@@ -325,12 +325,4 @@ namespace GooglePhotoSync.Google
             SetForegroundWindow(GetConsoleWindow());
         }
     }
-
-    public static class StringExtensions
-    {
-        public static T DeserialiseToAnon<T>(this string value, T itemType)
-        {
-            return JsonSerializer.Deserialize<T>(value);
-        }
-    }
 }

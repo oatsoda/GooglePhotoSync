@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using GooglePhotoSync.Google;
 using GooglePhotoSync.Google.Api;
@@ -43,6 +45,14 @@ namespace GooglePhotoSync
                           .Configure<LocalSettings>(configuration.GetSection(nameof(LocalSettings)));
 
             services.AddRefitClient<IGooglePhotosApi>()
+                                                      //new RefitSettings
+                                                      //{
+                                                      //  ContentSerializer = new SystemTextJsonContentSerializer(
+                                                      //                          new JsonSerializerOptions
+                                                      //                          {
+                                                      //                              NumberHandling = JsonNumberHandling.AllowReadingFromString
+                                                      //                          })
+                                                      //})
                     .ConfigureHttpClient((sp, c) => c.BaseAddress = new Uri(configuration.GetSection(nameof(GoogleSettings)).Get<GoogleSettings>().GooglePhotosApiBaseUrl))
                     .AddHttpMessageHandler<AuthenticatedHttpClientHandler>();
 

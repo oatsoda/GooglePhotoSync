@@ -24,7 +24,7 @@ namespace GooglePhotoSync.Sync
 
                 if (match == null)
                     NeverSyncedAlbums.Add(localAlbum);
-                else if (match.MediaItemsCount != localAlbum.TotalFiles)
+                else if (int.Parse(match.MediaItemsCount) != localAlbum.TotalFiles)
                     PartialSyncedAlbums.Add(new LocalGooglePair(localAlbum, match));
                 else
                     SameAlbumsCount++;
