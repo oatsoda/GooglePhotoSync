@@ -11,13 +11,4 @@ namespace GooglePhotoSync.Google.Api
         [Post("")]
         public Task<GoogleAuthState> RequestToken([Body(BodySerializationMethod.UrlEncoded)] FormUrlEncodedContent content);
     }
-
-
-    public class TokenRequestHttpClientHandler : DelegatingHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            return base.SendAsync(request, cancellationToken);
-        }
-    }
 }

@@ -29,7 +29,6 @@ namespace GooglePhotoSync
 
                           .AddSingleton<GoogleLogin>()
                           .AddTransient<AuthenticatedHttpClientHandler>()
-                          .AddTransient<TokenRequestHttpClientHandler>()
                           .AddSingleton<IGoogleBearerTokenRetriever, GoogleBearerTokenRetriever>()
                 
                           .AddTransient<LocalSource>()
@@ -49,9 +48,7 @@ namespace GooglePhotoSync
                     .AddHttpMessageHandler<AuthenticatedHttpClientHandler>();
 
             services.AddRefitClient<IAuthToken>()
-                    .ConfigureHttpClient((_, c) => c.BaseAddress = new Uri("https://www.googleapis.com/oauth2/v4/token"))
-                    .AddHttpMessageHandler<TokenRequestHttpClientHandler>();
-            
+                    .ConfigureHttpClient((_, c) => c.BaseAddress = new Uri("https://oauth2.googleapis.com/token"));
             var serviceProvider =  services.BuildServiceProvider();
             
             var sync = serviceProvider.GetRequiredService<SyncPhotos>();

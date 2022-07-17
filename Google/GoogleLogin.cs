@@ -150,7 +150,7 @@ namespace GooglePhotoSync.Google
                                                new FormUrlEncodedContent(new List<KeyValuePair<string, string>>
                                                                          {
                                                                              new("code", code),
-                                                                             new("redirect_uri", Uri.EscapeDataString(redirectUri)),
+                                                                             new("redirect_uri", redirectUri),
                                                                              new("client_id", m_ClientId),
                                                                              new("code_verifier", codeVerifier),
                                                                              new("client_secret", m_ClientSecret),
