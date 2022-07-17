@@ -89,7 +89,7 @@ namespace GooglePhotoSync.Sync
                                                                          }
                                                                         );
 
-            var failures = response.newMediaItemResults.Where(r => r.status.message != "Success").ToList();
+            var failures = response.newMediaItemResults.Where(r => r.status.message != "Success" && r.status.message != "OK").ToList();
             var success = response.newMediaItemResults.Count - failures.Count;
 
             if (failures.Any())
