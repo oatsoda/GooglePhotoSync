@@ -276,7 +276,7 @@ namespace GooglePhotoSync.Google
         /// <returns></returns>
         private static string RandomDataBase64Url(uint length)
         {
-            var rng = new RNGCryptoServiceProvider();
+            var rng = RandomNumberGenerator.Create();
             var bytes = new byte[length];
             rng.GetBytes(bytes);
             return Base64UrlencodeNoPadding(bytes);
@@ -288,7 +288,7 @@ namespace GooglePhotoSync.Google
         private static byte[] Sha256(string input)
         {
             var bytes = Encoding.ASCII.GetBytes(input);
-            var sha256 = new SHA256Managed();
+            var sha256 = SHA256.Create();
             return sha256.ComputeHash(bytes);
         }
 
