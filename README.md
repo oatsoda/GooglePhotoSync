@@ -19,7 +19,9 @@ Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in yo
 
 # TODO
 
+- Improve the sync logic by using the search endpoint to find all mediaitems in an album: https://developers.google.com/photos/library/guides/list#listing-album-contents
 - Local (encrypted) token cache to save logging in every time
+- Support larger files by resumable upload? https://developers.google.com/photos/library/guides/resumable-uploads
 
 # Authentication
 
@@ -29,7 +31,8 @@ Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in yo
 
 # Diff/Sync Logic
 
-The Google API does not have a "get photo" endpoint, so it's not possible to check each file individually (aside from possibly using MediaItem search with Album filter to get all photos in an album?) so therefore the app logic is:
+The Google API does not have a "get photo" endpoint, so it's not possible to check each file 
+individually (aside from possibly using MediaItem search with Album filter to get all photos in an album?) so therefore the app logic is:
 
 1. Retrieve all Albums from Google (which includes count of items in each)
 2. Retrieve all Folders and Files from local store.
