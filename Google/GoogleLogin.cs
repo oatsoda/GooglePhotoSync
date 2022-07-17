@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -7,10 +6,10 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 
 namespace GooglePhotoSync.Google
 {
@@ -74,13 +73,21 @@ namespace GooglePhotoSync.Google
                                                      codeChallengeMethod,
                                                      addScopes);
 
+            Output(authorizationRequest);
+
             // Opens request in the browser.
             var ps = new System.Diagnostics.ProcessStartInfo(authorizationRequest)
                      {
                          UseShellExecute = true, // Doesn't work without this - but makes it only work on Windows
                          Verb = "open"
                      };
-            System.Diagnostics.Process.Start(ps);
+            var process = System.Diagnostics.Process.Start(ps);
+            if (process == null)
+                m_Logger.LogError("Failed to start browser.");
+            else if (process.HasExited)
+                m_Logger.LogError("Browser started and exited. pid {pid}", process.Id);
+            else
+                m_Logger.LogDebug($@"Browser Started pid {process.Id} {process.ProcessName}");
 
             // Waits for the OAuth authorization response.
             var context = await http.GetContextAsync();
@@ -90,7 +97,7 @@ namespace GooglePhotoSync.Google
 
             // Sends an HTTP response to the browser.
             var response = context.Response;
-            const string responseString = "<html><head><meta http-equiv='refresh' content='10;url=https://google.com'></head><body>Please return to the app.</body></html>";
+            const string responseString = "<html><body>Please return to the app.</body></html>";
             var buffer = Encoding.UTF8.GetBytes(responseString);
             response.ContentLength64 = buffer.Length;
             var responseOutput = response.OutputStream;
@@ -169,13 +176,7 @@ namespace GooglePhotoSync.Google
                 var responseText = await reader.ReadToEndAsync();
                 Output(responseText);
 
-                // converts to dictionary
-                var tokenEndpointDecoded = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseText);
-
-                return new GoogleAuthState(tokenEndpointDecoded["access_token"],
-                                           int.Parse(tokenEndpointDecoded["expires_in"]),
-                                           tokenEndpointDecoded["refresh_token"]
-                                          );
+                return JsonSerializer.Deserialize<GoogleAuthState>(responseText);
             }
             catch (WebException ex)
             {
@@ -230,12 +231,20 @@ namespace GooglePhotoSync.Google
                 Output(responseText);
 
                 // converts to dictionary
-                var tokenEndpointDecoded = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseText);
+                //var tokenEndpointDecoded = responseText.DeserialiseToAnon(new
+                //                                                          {
+                //                                                              access_token = "",
+                //                                                              expires_in = 0,
+                //                                                              refresh_token = ""
+                //                                                          });
 
-                return new GoogleAuthState(tokenEndpointDecoded["access_token"],
-                                           int.Parse(tokenEndpointDecoded["expires_in"]),
-                                           googleAuthState.RefreshToken
-                                          );
+                //return new(tokenEndpointDecoded.access_token, tokenEndpointDecoded.expires_in, )
+                return JsonSerializer.Deserialize<GoogleAuthState>(responseText);
+
+                //return new GoogleAuthState(tokenEndpointDecoded["access_token"],
+                //                           int.Parse(tokenEndpointDecoded["expires_in"]),
+                //                           googleAuthState.RefreshToken
+                //                          );
             }
             catch (WebException ex)
             {
@@ -314,6 +323,14 @@ namespace GooglePhotoSync.Google
         public static void BringConsoleToFront()
         {
             SetForegroundWindow(GetConsoleWindow());
+        }
+    }
+
+    public static class StringExtensions
+    {
+        public static T DeserialiseToAnon<T>(this string value, T itemType)
+        {
+            return JsonSerializer.Deserialize<T>(value);
         }
     }
 }

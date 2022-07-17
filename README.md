@@ -20,7 +20,6 @@ Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in yo
 # TODO
 
 - Local (encrypted) token cache to save logging in every time
-- Auto renew token when expired using refresh token
 
 # Authentication
 

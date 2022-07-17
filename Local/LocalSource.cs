@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GooglePhotoSync.Local
@@ -9,6 +10,8 @@ namespace GooglePhotoSync.Local
     public class LocalSource
     {
         private readonly LocalSettings m_LocalSettings;
+        private readonly ILogger<LocalSource> m_Logger;
+
         private readonly DirectoryInfo m_RootDir;
 
         public List<LocalPhotoAlbum> PhotoAlbums { get; private set; }
@@ -19,8 +22,9 @@ namespace GooglePhotoSync.Local
         private long? m_TotalBytes;
         public long TotalBytes => m_TotalBytes ?? (m_TotalBytes = PhotoAlbums.Sum(a => a.TotalBytes)).Value;
 
-        public LocalSource(IOptions<LocalSettings> localSettings)
+        public LocalSource(IOptions<LocalSettings> localSettings, ILogger<LocalSource> logger)
         {
+            m_Logger = logger;
             m_LocalSettings = localSettings.Value;
             m_RootDir = new DirectoryInfo(localSettings.Value.LocalFolderRoot);
         }
@@ -30,7 +34,7 @@ namespace GooglePhotoSync.Local
             PhotoAlbums = m_RootDir.EnumerateDirectories()
                                    .OrderBy(f => f.Name)
                                    .Where(IsNotIgnored)
-                                   .Select(d => new LocalPhotoAlbum(d, m_LocalSettings))
+                                   .Select(d => new LocalPhotoAlbum(d, m_LocalSettings, m_Logger))
                                    .ToList();
         }
 
@@ -45,6 +49,7 @@ namespace GooglePhotoSync.Local
     {
         private readonly DirectoryInfo m_Dir;
         private readonly LocalSettings m_LocalSettings;
+        private readonly ILogger m_Logger;
 
         public string Name => m_Dir.Name;
         public List<LocalFile> Files { get; }
@@ -54,21 +59,38 @@ namespace GooglePhotoSync.Local
         private long? m_TotalBytes;
         public long TotalBytes => m_TotalBytes ?? (m_TotalBytes = Files.Sum(f => f.Bytes)).Value;
 
-        public LocalPhotoAlbum(DirectoryInfo dir, LocalSettings localSettings)
+        public LocalPhotoAlbum(DirectoryInfo dir, LocalSettings localSettings, ILogger logger)
         {
             m_Dir = dir;
             m_LocalSettings = localSettings;
+            m_Logger = logger;
 
             Files = m_Dir.EnumerateFiles()
-                         .Where(f => IsNotIgnored(f) && f.Length <= localSettings.MaxFileSizeBytes) // TODO: Temp size filter - think large files need splitting
+                         .Where(f => IsSupportedFileType(f) && IsWithinFileSize(f)) 
                          .Select(f => new LocalFile(f, localSettings, this))
                          .ToList();
         }
 
-        private bool IsNotIgnored(FileInfo file)
+        private bool IsSupportedFileType(FileInfo file)
         {
-            return m_LocalSettings.ImageExtensions.Any(e => string.Compare(e, file.Extension, StringComparison.CurrentCultureIgnoreCase) == 0) ||
+            var isSupported = m_LocalSettings.ImageExtensions.Any(e => string.Compare(e, file.Extension, StringComparison.CurrentCultureIgnoreCase) == 0) ||
                    m_LocalSettings.VideoExtensions.Any(e => string.Compare(e, file.Extension, StringComparison.CurrentCultureIgnoreCase) == 0);
+            
+            if (!isSupported)
+                m_Logger.LogInformation("Unsupported File {ext} Skipped: {name} [{size}]", file.Extension, file.FullName, file.Length.AsHumanReadableBytes("MB"));
+            
+            return isSupported;
+        }
+
+        private bool IsWithinFileSize(FileInfo file)
+        {
+            // TODO: Temp size filter - think large files need splitting
+            var isUnderMax = file.Length <= m_LocalSettings.MaxFileSizeBytes;
+
+            if (!isUnderMax)
+                m_Logger.LogInformation("Large file Skipped: {name} [{size}]", file.FullName, file.Length.AsHumanReadableBytes("MB"));
+
+            return isUnderMax;
         }
 
     }
