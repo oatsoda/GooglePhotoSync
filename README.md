@@ -20,7 +20,6 @@ Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in yo
 # TODO
 
 - Improve the sync logic by using the search endpoint to find all mediaitems in an album: https://developers.google.com/photos/library/guides/list#listing-album-contents
-- Local (encrypted) token cache to save logging in every time
 - Support larger files by resumable upload? https://developers.google.com/photos/library/guides/resumable-uploads
 
 # Authentication

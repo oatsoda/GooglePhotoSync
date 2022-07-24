@@ -160,7 +160,7 @@ namespace GooglePhotoSync.Google
                                                );
         }
 
-        public async Task<GoogleAuthState> GetNewAccessToken(GoogleAuthState googleAuthState)
+        public async Task<GoogleAuthState> GetNewAccessToken(string refreshToken)
         {
             Output("Getting new access token via refresh token...");
 
@@ -169,7 +169,7 @@ namespace GooglePhotoSync.Google
                                                                                {
                                                                                    new("client_id", m_ClientId),
                                                                                    new("client_secret", m_ClientSecret),
-                                                                                   new("refresh_token", googleAuthState.RefreshToken),
+                                                                                   new("refresh_token", refreshToken),
                                                                                    new("grant_type", "refresh_token")
                                                                                })
                                                     );
