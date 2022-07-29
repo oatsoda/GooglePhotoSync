@@ -19,7 +19,7 @@ namespace GooglePhotoSync.Sync
         {
             foreach (var partial in diff.PartialSyncedAlbums)
             {
-                m_Logger.LogInformation($"Syncing partial: '{partial.Local.Name}' (Local: {partial.UnsyncedPhotos.Count} [{partial.UnsyncedPhotoTotalBytes.AsHumanReadableBytes("MB")}], Google: {partial.Google.MediaItemsCount})");
+                m_Logger.LogInformation($"Syncing partial: '{partial.Local.Name}' unsynced {partial.UnsyncedPhotos.Count} [{partial.UnsyncedPhotoTotalBytes.AsHumanReadableBytes("MB")}] (Local: {partial.Local.TotalFiles}, Google: {partial.Google.MediaItemsCount})");
                 var sync = m_SyncFactory();
                 await sync.SyncPartialAlbum(partial);
             }

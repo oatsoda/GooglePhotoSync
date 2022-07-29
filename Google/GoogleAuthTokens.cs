@@ -12,9 +12,9 @@ public record GoogleAuthTokens(string AccessToken, string RefreshToken, DateTime
         return (ExpiresUtc - DateTimeOffset.UtcNow).TotalMinutes < _REFRESH_WITHIN_MINUTES;
     }
 
-    public static GoogleAuthTokens FromAuthState(GoogleAuthState authState)
+    public static GoogleAuthTokens FromAuthState(GoogleAuthState authState, string setRefreshToken = null)
     {
-        return new GoogleAuthTokens(authState.AccessToken, authState.RefreshToken, 
+        return new GoogleAuthTokens(authState.AccessToken, setRefreshToken ?? authState.RefreshToken, 
                                     DateTimeOffset.UtcNow.AddSeconds(authState.ExpiresIn));
 
     }

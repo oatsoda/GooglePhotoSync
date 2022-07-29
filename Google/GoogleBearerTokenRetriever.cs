@@ -62,7 +62,7 @@ namespace GooglePhotoSync.Google
             {
                 m_Logger.LogInformation("Token Expiring...Refreshing Token...");
                 var authState = await m_GoogleLogin.GetNewAccessToken(m_CurrentAuthTokens.RefreshToken);
-                m_CurrentAuthTokens = GoogleAuthTokens.FromAuthState(authState);
+                m_CurrentAuthTokens = GoogleAuthTokens.FromAuthState(authState, m_CurrentAuthTokens.RefreshToken); // On refreshing the token, the refresh_token will be null so persist the original
                 await SaveCachedToken(m_CurrentAuthTokens);
             }
 
