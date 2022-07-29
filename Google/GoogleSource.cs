@@ -1,9 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using GooglePhotoSync.Google.Api;
+﻿using GooglePhotoSync.Google.Api;
 using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace GooglePhotoSync.Google
 {
@@ -37,28 +35,6 @@ namespace GooglePhotoSync.Google
             } while (response.NextPageToken != null);
 
             Albums = albums;
-        }
-    }
-
-    public static class GoogleAlbumExtensions
-    {
-        public static async Task<List<MediaItem>> GetAlbumPhotos(this GoogleAlbum album, IGooglePhotosApi googlePhotosApi)
-        {
-            var mediaItems = new List<MediaItem>();
-
-            SearchMediaItemsResponse response;
-            string pageToken = null;
-            do
-            {
-                var request = new SearchMediaItemsRequest { albumId = album.Id, pageSize = 100, pageToken = pageToken };
-                response = await googlePhotosApi.SearchMediaItems(request);
-                if (response.MediaItems != null)
-                    mediaItems.AddRange(response.MediaItems);
-                pageToken = response.NextPageToken;
-
-            } while (response.NextPageToken != null);
-            
-            return mediaItems;
         }
     }
 }

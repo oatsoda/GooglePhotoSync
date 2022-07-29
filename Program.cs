@@ -38,9 +38,7 @@ namespace GooglePhotoSync
                           .AddTransient<CollectionSync>()
                           .AddTransient<AlbumSync>()
                           .AddSingleton<Func<AlbumSync>>(sp => sp.GetService<AlbumSync>)
-
-                          .AddTransient<SyncStateFile>()
-                
+                          
                           .Configure<GoogleSettings>(configuration.GetSection(nameof(GoogleSettings)))
                           .Configure<LocalSettings>(configuration.GetSection(nameof(LocalSettings)));
 
