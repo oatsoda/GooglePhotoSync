@@ -19,10 +19,11 @@ namespace GooglePhotoSync.Sync
 
         public async Task SyncCollection(CollectionDiff diff)
         {
-            var syncState = await m_SyncStateFile.Load();
+            //var syncState = await m_SyncStateFile.Load();
             
             foreach (var partial in diff.PartialSyncedAlbums)
             {
+                /*
                 // Even if Google has different number, skip if local record says we've synced the number of files locally already (at the moment, avoid re-syncing just because a new file appears in google etc.)
                 // We could instead just sync only if less files in google than local.
                 // But for now, don't sync unless local has changed (assuming what is google hasn't changed to!)
@@ -31,12 +32,13 @@ namespace GooglePhotoSync.Sync
                     m_Logger.LogInformation($"Skipping partial: '{partial.Local.Name}' (Local: {partial.Local.TotalFiles})");
                     continue;
                 }
+                */
 
-                m_Logger.LogInformation($"Syncing partial: '{partial.Local.Name}' (Local: {partial.Local.TotalFiles} [{partial.Local.TotalBytes.AsHumanReadableBytes("MB")}], Google: {partial.Google.MediaItemsCount})");
+                m_Logger.LogInformation($"Syncing partial: '{partial.Local.Name}' (Local: {partial.UnsyncedPhotos.Count} [{partial.UnsyncedPhotoTotalBytes.AsHumanReadableBytes("MB")}], Google: {partial.Google.MediaItemsCount})");
                 var sync = m_SyncFactory();
-                var filesSynced = await sync.SyncAlbum(partial.Local, partial.Google);
-                syncState.SetFolderState(partial.Local.Name, filesSynced);
-                await m_SyncStateFile.Save(syncState);
+                var filesSynced = await sync.SyncPartialAlbum(partial);
+                //syncState.SetFolderState(partial.Local.Name, filesSynced);
+                //await m_SyncStateFile.Save(syncState);
             }
 
             foreach (var local in diff.NeverSyncedAlbums)
@@ -44,8 +46,8 @@ namespace GooglePhotoSync.Sync
                 m_Logger.LogInformation($"Syncing never synced: '{local.Name}' {local.TotalFiles} [{local.TotalBytes.AsHumanReadableBytes("MB")}]");
                 var sync = m_SyncFactory();
                 var filesSynced = await sync.SyncAlbum(local, null);
-                syncState.SetFolderState(local.Name, filesSynced);
-                await m_SyncStateFile.Save(syncState);
+                //syncState.SetFolderState(local.Name, filesSynced);
+                //await m_SyncStateFile.Save(syncState);
             }
         }
     }

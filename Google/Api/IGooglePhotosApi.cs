@@ -136,7 +136,10 @@ namespace GooglePhotoSync.Google.Api
 
     public class SearchMediaItemsRequest
     {
+        public string albumId { get; set; }
 
+        public int pageSize {  get; set; }
+        public string pageToken {  get; set; }
     }
 
     public class SearchMediaItemsResponse

@@ -34,6 +34,7 @@ namespace GooglePhotoSync
                           .AddTransient<LocalSource>()
                           .AddTransient<GoogleSource>()
 
+                          .AddTransient<CollectionComparer>()
                           .AddTransient<CollectionSync>()
                           .AddTransient<AlbumSync>()
                           .AddSingleton<Func<AlbumSync>>(sp => sp.GetService<AlbumSync>)

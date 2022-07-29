@@ -19,7 +19,6 @@ Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in yo
 
 # TODO
 
-- Improve the sync logic by using the search endpoint to find all mediaitems in an album: https://developers.google.com/photos/library/guides/list#listing-album-contents
 - Support larger files by resumable upload? https://developers.google.com/photos/library/guides/resumable-uploads
 
 # Authentication
@@ -30,15 +29,11 @@ Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in yo
 
 # Diff/Sync Logic
 
-The Google API does not have a "get photo" endpoint, so it's not possible to check each file 
-individually (aside from possibly using MediaItem search with Album filter to get all photos in an album?) so therefore the app logic is:
-
 1. Retrieve all Albums from Google (which includes count of items in each)
 2. Retrieve all Folders and Files from local store.
 3. Match Albums by name
    - If not exists at Google, upload all files.
-     - Record count of files uploaded for the album in google.sync file.
    - If exists and _same_ number of files, skip.
    - If exists and _different_ number of files, then
-     - If google.sync entry says count of files uploaded equals local, then skip (i.e. don't re-upload because Google has extra file)
-     - if google.sync entry says count of files uploaded is different to local folder, then re-upload all (i.e. assume change to the local folder - but note will not delete a file at Google, so perhaps we should only re-upload if google has less than local or local has more than last synced in google.sync)
+     - Retrieve list of files for the Album at Google
+     - If any missing (by FileName) upload those.

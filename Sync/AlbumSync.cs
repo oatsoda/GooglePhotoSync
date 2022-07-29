@@ -22,7 +22,12 @@ namespace GooglePhotoSync.Sync
         {
             album ??= await CreateAlbum(local.Name);
 
-            return await SyncFiles(local, album);
+            return await SyncFiles(local.Name, local.Files, album);
+        }
+        
+        public async Task<int> SyncPartialAlbum(CollectionDiff.PartialSyncedAlbum partial)
+        {
+            return await SyncFiles(partial.Local.Name, partial.UnsyncedPhotos, partial.Google);
         }
 
         private async Task<GoogleAlbum> CreateAlbum(string albumName)
@@ -37,7 +42,7 @@ namespace GooglePhotoSync.Sync
                                                        });
         }
 
-        private async Task<int> SyncFiles(LocalPhotoAlbum localAlbum, GoogleAlbum googleAlbum)
+        private async Task<int> SyncFiles(string localAlbumName, List<LocalFile> localAlbumFiles, GoogleAlbum googleAlbum)
         {
             // Not checking if file exists at the moment because I think we have to
             // use the MediaItem Search with AlbumId to get all the photos and inspect the
@@ -49,7 +54,7 @@ namespace GooglePhotoSync.Sync
 
             var filesInCurrentBatch = 0;
             var totalSuccessfulUploads = 0;
-            foreach (var file in localAlbum.Files.OrderBy(f => f.FileName))
+            foreach (var file in localAlbumFiles.OrderBy(f => f.FileName))
             {
                 m_Logger.LogDebug($"Uploading [{file.Bytes.AsHumanReadableBytes("KB")}] {file.ShortFilePath}");
                 var uploadToken = await m_GooglePhotosApi.UploadFile(file.OpenStream(), file.MimeType);
@@ -66,22 +71,22 @@ namespace GooglePhotoSync.Sync
 
                 if (++filesInCurrentBatch == batchSize)
                 {
-                    totalSuccessfulUploads += await CreateMediateItemsBatch(localAlbum, googleAlbum, uploaded);
+                    totalSuccessfulUploads += await CreateMediateItemsBatch(localAlbumName, googleAlbum, uploaded);
                     filesInCurrentBatch = 0;
                     uploaded.Clear();
-                    m_Logger.LogInformation($"{totalSuccessfulUploads} of {localAlbum.TotalFiles} uploaded.");
+                    m_Logger.LogInformation($"{totalSuccessfulUploads} of {localAlbumFiles.Count} uploaded.");
                 }
             }
 
             if (uploaded.Any())
-                totalSuccessfulUploads += await CreateMediateItemsBatch(localAlbum, googleAlbum, uploaded);
+                totalSuccessfulUploads += await CreateMediateItemsBatch(localAlbumName, googleAlbum, uploaded);
 
             return totalSuccessfulUploads;
         }
 
-        private async Task<int> CreateMediateItemsBatch(LocalPhotoAlbum localAlbum, GoogleAlbum googleAlbum, List<UploadedFile> uploaded)
+        private async Task<int> CreateMediateItemsBatch(string localAlbumName, GoogleAlbum googleAlbum, List<UploadedFile> uploaded)
         {
-            m_Logger.LogDebug($"Creating {uploaded.Count} media items in {localAlbum.Name} [{googleAlbum.Id}]");
+            m_Logger.LogDebug($"Creating {uploaded.Count} media items in {localAlbumName} [{googleAlbum.Id}]");
             var response = await m_GooglePhotosApi.BatchCreateMediaItems(new BatchCreateMediaItemsRequest
                                                                          {
                                                                              albumId = googleAlbum.Id,
@@ -102,7 +107,7 @@ namespace GooglePhotoSync.Sync
                 }
             }
             
-            m_Logger.LogDebug($"Successfully uploaded {success} media items in {localAlbum.Name} [{googleAlbum.Id}]");
+            m_Logger.LogDebug($"Successfully uploaded {success} media items in {localAlbumName} [{googleAlbum.Id}]");
             return success;
         }
 
