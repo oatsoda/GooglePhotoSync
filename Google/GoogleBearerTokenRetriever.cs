@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using GooglePhotoSync.Google.Api;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -37,19 +38,27 @@ namespace GooglePhotoSync.Google
             }
             else
             {
-                var authState = await m_GoogleLogin.DoOAuth(m_GoogleScope);
-                if (authState == null)
-                {
-                    m_Logger.LogError("Authentication Failed");
+                if (!await InteractiveLogin())
                     return false;
-                }
-
-                m_CurrentAuthTokens = GoogleAuthTokens.FromAuthState(authState);
-                await SaveCachedToken(m_CurrentAuthTokens);
-                m_Logger.LogInformation("Authentication succeeded");
             }
 
             m_IsInit = true;
+            return true;
+        }
+
+        private async Task<bool> InteractiveLogin()
+        {
+            m_Logger.LogInformation("Requires Interactive authentication");
+            var authState = await m_GoogleLogin.DoOAuth(m_GoogleScope);
+            if (authState == null)
+            {
+                m_Logger.LogError("Authentication Failed");
+                return false;
+            }
+
+            m_CurrentAuthTokens = GoogleAuthTokens.FromAuthState(authState);
+            await SaveCachedToken(m_CurrentAuthTokens);
+            m_Logger.LogInformation("Authentication succeeded");
             return true;
         }
 
@@ -61,7 +70,20 @@ namespace GooglePhotoSync.Google
             if (m_CurrentAuthTokens.IsExpiring())
             {
                 m_Logger.LogInformation("Token Expiring...Refreshing Token...");
-                var authState = await m_GoogleLogin.GetNewAccessToken(m_CurrentAuthTokens.RefreshToken);
+                GoogleAuthState authState = null;
+                try
+                {
+                    authState = await m_GoogleLogin.GetNewAccessToken(m_CurrentAuthTokens.RefreshToken);
+                }
+                catch (Exception ex)
+                {
+                    m_Logger.LogError("Failed to renew Auth Token: {err}", ex);
+                    if (await InteractiveLogin())
+                        return await Task.FromResult(m_CurrentAuthTokens.AccessToken);
+
+                    throw new TokenRenewalFailedException();
+                }
+
                 m_CurrentAuthTokens = GoogleAuthTokens.FromAuthState(authState, m_CurrentAuthTokens.RefreshToken); // On refreshing the token, the refresh_token will be null so persist the original
                 await SaveCachedToken(m_CurrentAuthTokens);
             }

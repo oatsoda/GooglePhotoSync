@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Refit;
 
 namespace GooglePhotoSync.Google
 {
@@ -163,7 +164,7 @@ namespace GooglePhotoSync.Google
         public async Task<GoogleAuthState> GetNewAccessToken(string refreshToken)
         {
             Output("Getting new access token via refresh token...");
-
+            
             return await m_AuthTokenApi.RequestToken(
                                                      new FormUrlEncodedContent(new List<KeyValuePair<string, string>>
                                                                                {
