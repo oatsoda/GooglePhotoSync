@@ -63,6 +63,8 @@ namespace GooglePhotoSync
 
 #if DEBUG 
             builder.AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true);
+#else
+            builder.AddJsonFile("appsettings.Production.json", optional: true, reloadOnChange: true);
 #endif
 
             return builder.Build();

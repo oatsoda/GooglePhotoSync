@@ -350,6 +350,7 @@ MigrationBackup/
 .ionide/
 
 # Stop my local secrets getting committed!
+appsettings.Production.json
 appsettings.Development.json
 # and the tokencache
 tokencache
