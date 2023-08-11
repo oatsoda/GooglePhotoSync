@@ -53,6 +53,7 @@ namespace GooglePhotoSync.Local
 
         public string Name => m_Dir.Name;
         public List<LocalFile> Files { get; }
+        public List<LocalFile> FilesTooLarge { get; }
         
         public int TotalFiles => Files.Count;
 
@@ -65,10 +66,19 @@ namespace GooglePhotoSync.Local
             m_LocalSettings = localSettings;
             m_Logger = logger;
 
-            Files = m_Dir.EnumerateFiles()
-                         .Where(f => IsSupportedFileType(f) && IsWithinFileSize(f)) 
-                         .Select(f => new LocalFile(f, localSettings, this))
-                         .ToList();
+            var supportedFiles = m_Dir.EnumerateFiles()
+                             .Where(IsSupportedFileType) 
+                             .ToList();
+
+            Files = supportedFiles
+                   .Where(IsWithinFileSize) 
+                   .Select(f => new LocalFile(f, localSettings, this))
+                   .ToList();
+            
+            FilesTooLarge = supportedFiles
+                           .Where(f => !IsWithinFileSize(f)) 
+                           .Select(f => new LocalFile(f, localSettings, this))
+                           .ToList();
         }
 
         private bool IsSupportedFileType(FileInfo file)

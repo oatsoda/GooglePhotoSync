@@ -36,7 +36,7 @@ namespace GooglePhotoSync.Sync
                 Google = google;
                 UnsyncedPhotos = Local.Files.Where(f => googleAlbumPhotos.All(g => g.Filename != f.FileName)).ToList();
                 UnsyncedPhotoTotalBytes = UnsyncedPhotos.Sum(p => p.Bytes);
-                ExtraPhotos = googleAlbumPhotos.Where(g => Local.Files.All(f => f.FileName != g.Filename)).ToList();
+                ExtraPhotos = googleAlbumPhotos.Where(g => Local.Files.All(f => f.FileName != g.Filename) && Local.FilesTooLarge.All(f => f.FileName != g.Filename)).ToList();
             }
         }
     }

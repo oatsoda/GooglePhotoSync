@@ -52,21 +52,5 @@ namespace GooglePhotoSync
             await m_CollectionSync.SyncCollection(collectionDiff);
             m_Logger.LogInformation("Finished. Exiting...");
         }
-
-        /*
-        SYNC THOUGHTS
-
-        1. Retrieve all Folders and FileInfos from local store.
-        2. Retrieve all Albums from Google (which includes number of items)
-        3. Match Albums by name
-        4. For matching Albums, compare file counts
-        5. If Google album has less files, then Upload
-            a. Use the /v1/uploads to upload the content
-            b. Use the upload-token from that to create the Media Item
-            c. Use the mediaItemId to add the item to the Album
-
-        Google apparently detects duplicate items so the risk of creating dupes is low. 
-        It might be easier though to rename all the older files which don't have unique file names.            
-        */
     }
 }
