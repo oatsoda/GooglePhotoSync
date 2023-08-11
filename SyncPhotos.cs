@@ -8,14 +8,14 @@ namespace GooglePhotoSync
 {
     public class SyncPhotos
     {
-        private readonly IGoogleBearerTokenRetriever m_GoogleBearerTokenRetriever;
+        private readonly GoogleBearerTokenRetriever m_GoogleBearerTokenRetriever;
         private readonly LocalSource m_LocalSource;
         private readonly GoogleSource m_GoogleSource;
         private readonly CollectionComparer m_CollectionComparer;
         private readonly CollectionSync m_CollectionSync;
         private readonly ILogger<SyncPhotos> m_Logger;
 
-        public SyncPhotos(IGoogleBearerTokenRetriever googleBearerTokenRetriever, 
+        public SyncPhotos(GoogleBearerTokenRetriever googleBearerTokenRetriever, 
                           LocalSource localSource, 
                           GoogleSource googleSource,
                           CollectionComparer collectionComparer,

@@ -10,9 +10,9 @@ namespace GooglePhotoSync.Google
     /// </summary>
     public class AuthenticatedHttpClientHandler : DelegatingHandler
     {
-        private readonly IGoogleBearerTokenRetriever m_TokenRetriever;
+        private readonly GoogleBearerTokenRetriever m_TokenRetriever;
 
-        public AuthenticatedHttpClientHandler(IGoogleBearerTokenRetriever tokenRetriever)
+        public AuthenticatedHttpClientHandler(GoogleBearerTokenRetriever tokenRetriever)
         {
             m_TokenRetriever = tokenRetriever;
         }

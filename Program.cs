@@ -29,7 +29,7 @@ namespace GooglePhotoSync
 
                           .AddSingleton<GoogleLogin>()
                           .AddTransient<AuthenticatedHttpClientHandler>()
-                          .AddSingleton<IGoogleBearerTokenRetriever, GoogleBearerTokenRetriever>()
+                          .AddSingleton<GoogleBearerTokenRetriever>()
                 
                           .AddTransient<LocalSource>()
                           .AddTransient<GoogleSource>()

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace GooglePhotoSync.Google
 {
-    public class GoogleBearerTokenRetriever : IGoogleBearerTokenRetriever
+    public class GoogleBearerTokenRetriever
     {
         private bool m_IsInit;
 
@@ -43,7 +43,7 @@ namespace GooglePhotoSync.Google
                     m_Logger.LogError("Authentication Failed");
                     return false;
                 }
-                
+
                 m_CurrentAuthTokens = GoogleAuthTokens.FromAuthState(authState);
                 await SaveCachedToken(m_CurrentAuthTokens);
                 m_Logger.LogInformation("Authentication succeeded");
@@ -66,7 +66,7 @@ namespace GooglePhotoSync.Google
                 await SaveCachedToken(m_CurrentAuthTokens);
             }
 
-            return await Task.FromResult(m_CurrentAuthTokens.AccessToken); 
+            return await Task.FromResult(m_CurrentAuthTokens.AccessToken);
         }
 
         private const string _TOKEN_CACHE_FILE_NAME = "tokencache";
@@ -85,7 +85,7 @@ namespace GooglePhotoSync.Google
             m_CurrentAuthTokens = JsonSerializer.Deserialize<GoogleAuthTokens>(bytes);
             return true;
         }
-        
+
         private async Task SaveCachedToken(GoogleAuthTokens authTokens)
         {
             var json = JsonSerializer.Serialize(authTokens);
