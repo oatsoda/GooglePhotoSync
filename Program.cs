@@ -24,36 +24,35 @@ namespace GooglePhotoSync
                                           builder.AddConfiguration(configuration.GetSection("Logging"));
                                           builder.AddConsole();
                                       })
-                          .AddSingleton<GoogleSettings>()
+                          //.AddSingleton<GoogleSettings>()
                           .AddTransient<SyncPhotos>()
 
                           .AddSingleton<GoogleLogin>()
                           .AddTransient<AuthenticatedHttpClientHandler>()
                           .AddSingleton<GoogleBearerTokenRetriever>()
-                
-                          .AddTransient<LocalSource>()
                           .AddTransient<GoogleSource>()
+                
+                          .ConfigureSettings<LocalSettings>(configuration)
+                          .AddTransient<LocalSource>()
 
                           .AddTransient<CollectionComparer>()
                           .AddTransient<CollectionSync>()
                           .AddTransient<AlbumSync>()
-                          .AddSingleton<Func<AlbumSync>>(sp => sp.GetService<AlbumSync>)
+                          .ConfigureSettings<SyncSettings>(configuration)
+                          //.AddSingleton<Func<AlbumSync>>(sp => sp.GetService<AlbumSync>)
+                          ;
                           
-                          .Configure<GoogleSettings>(configuration.GetSection(nameof(GoogleSettings)))
-                          .Configure<LocalSettings>(configuration.GetSection(nameof(LocalSettings)));
+            var googleSettings = services.ConfigureAndGet<GoogleSettings>(configuration);
 
             services.AddRefitClient<IGooglePhotosApi>()
-                    .ConfigureHttpClient((_, c) => c.BaseAddress = new Uri(configuration.GetSection(nameof(GoogleSettings)).Get<GoogleSettings>().GooglePhotosApiBaseUrl))
+                    .ConfigureHttpClient((_, c) => c.BaseAddress = new Uri(googleSettings.GooglePhotosApiBaseUrl))
                     .AddHttpMessageHandler<AuthenticatedHttpClientHandler>();
 
             services.AddRefitClient<IAuthToken>()
-                    .ConfigureHttpClient((_, c) => c.BaseAddress = new Uri("https://oauth2.googleapis.com/token"));
-            var serviceProvider =  services.BuildServiceProvider();
-            
-            var sync = serviceProvider.GetRequiredService<SyncPhotos>();
-            await sync.Sync();
+                    .ConfigureHttpClient((_, c) => c.BaseAddress = new Uri(googleSettings.GoogleTokenUrl));
 
-            Console.ReadLine();
+            var sync =  services.BuildServiceProvider().GetRequiredService<SyncPhotos>();
+            await sync.Sync();
         }
 
         private static IConfiguration LoadConfiguration()
@@ -68,6 +67,23 @@ namespace GooglePhotoSync
 #endif
 
             return builder.Build();
+        }
+    }
+
+    public static class ServiceCollectionExtensions
+    {
+        public static IServiceCollection ConfigureSettings<T>(this IServiceCollection services, IConfiguration configuration) where T : class 
+        {
+            var settings = configuration.GetRequiredSection(typeof(T).Name);
+            services.Configure<T>(settings);
+            return services;
+        }
+
+        public static T ConfigureAndGet<T>(this IServiceCollection services, IConfiguration configuration) where T : class 
+        {
+            var settings = configuration.GetRequiredSection(typeof(T).Name);
+            services.Configure<T>(settings);
+            return settings.Get<T>();
         }
     }
 }

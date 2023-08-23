@@ -6,5 +6,6 @@
         public string GoogleClientId { get; set; }
         public string GoogleClientSecret { get; set; }
         public string GooglePhotoScope { get; set; }
+        public string GoogleTokenUrl { get; set;}
     }
 }

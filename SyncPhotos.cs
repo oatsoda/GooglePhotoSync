@@ -1,8 +1,10 @@
-﻿using System.Threading.Tasks;
-using GooglePhotoSync.Google;
+﻿using GooglePhotoSync.Google;
 using GooglePhotoSync.Local;
 using GooglePhotoSync.Sync;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System;
+using System.Threading.Tasks;
 
 namespace GooglePhotoSync
 {
@@ -51,6 +53,8 @@ namespace GooglePhotoSync
             m_Logger.LogInformation("Syncing");
             await m_CollectionSync.SyncCollection(collectionDiff);
             m_Logger.LogInformation("Finished. Exiting...");
+                        
+            Console.ReadLine();
         }
     }
 }
