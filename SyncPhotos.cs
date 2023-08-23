@@ -22,6 +22,7 @@ namespace GooglePhotoSync
                           GoogleSource googleSource,
                           CollectionComparer collectionComparer,
                           CollectionSync collectionSync,
+                          IOptions<SyncSettings> settings,
                           ILogger<SyncPhotos> logger)
         {
             m_GoogleBearerTokenRetriever = googleBearerTokenRetriever;
@@ -30,6 +31,18 @@ namespace GooglePhotoSync
             m_CollectionComparer = collectionComparer;
             m_CollectionSync = collectionSync;
             m_Logger = logger;
+
+            if (settings.Value.BatchSize > 50)
+                throw new InvalidOperationException($"{nameof(SyncSettings.BatchSize)} must not be greater than 50.");
+
+            if (settings.Value.BatchSize <= 0)
+                throw new InvalidOperationException($"{nameof(SyncSettings.BatchSize)} must be greater than 0.");
+            
+            if (settings.Value.ParallelUploads > settings.Value.BatchSize)
+                throw new InvalidOperationException($"{nameof(SyncSettings.ParallelUploads)} must not be greater than {nameof(SyncSettings.BatchSize)}.");
+
+            if (settings.Value.ParallelUploads <= 0)
+                throw new InvalidOperationException($"{nameof(SyncSettings.ParallelUploads)} must be greater than 0.");
         }
 
         public async Task Sync()

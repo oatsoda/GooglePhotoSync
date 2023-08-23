@@ -1,8 +1,10 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using GooglePhotoSync.Google.Api;
+﻿using GooglePhotoSync.Google.Api;
 using GooglePhotoSync.Local;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace GooglePhotoSync.Sync
@@ -10,11 +12,13 @@ namespace GooglePhotoSync.Sync
     public class AlbumSync
     {
         private readonly IGooglePhotosApi m_GooglePhotosApi;
+        private readonly SyncSettings m_Settings;
         private readonly ILogger<AlbumSync> m_Logger;
 
-        public AlbumSync(IGooglePhotosApi googlePhotosApi, ILogger<AlbumSync> logger)
+        public AlbumSync(IGooglePhotosApi googlePhotosApi, IOptions<SyncSettings> settings, ILogger<AlbumSync> logger)
         {
             m_GooglePhotosApi = googlePhotosApi;
+            m_Settings = settings.Value;
             m_Logger = logger;
         }
 
@@ -44,42 +48,45 @@ namespace GooglePhotoSync.Sync
 
         private async Task<int> SyncFiles(string localAlbumName, List<LocalFile> localAlbumFiles, GoogleAlbum googleAlbum)
         {
-            // Not checking if file exists at the moment because I think we have to
-            // use the MediaItem Search with AlbumId to get all the photos and inspect the
-            // filename. (also filenames could be duplicated but not in a local album folder)
+            var uploaded = new List<UploadedFile>(m_Settings.BatchSize);
 
-            const int batchSize = 5; //20; // limit is 50
-
-            var uploaded = new List<UploadedFile>(batchSize);
-
-            var filesInCurrentBatch = 0;
             var totalSuccessfulUploads = 0;
-            foreach (var file in localAlbumFiles.OrderBy(f => f.FileName))
+            var sw = new Stopwatch();
+
+            foreach (var batch in localAlbumFiles.OrderBy(f => f.FileName).Chunk(m_Settings.BatchSize))
             {
-                m_Logger.LogDebug($"Uploading [{file.Bytes.AsHumanReadableBytes("KB")}] {file.ShortFilePath}");
-                var uploadToken = await m_GooglePhotosApi.UploadFile(file.OpenStream(), file.MimeType);
-                uploaded.Add(new UploadedFile(file, new BatchCreateMediaItemRequest
-                                                    {
-                                                        description = "",
-                                                        simpleMediaItem = new BatchCreateMediaItemRequest.MediaItem
-                                                                          {
-                                                                              uploadToken = uploadToken,
-                                                                              fileName = file.FileName
-                                                                          }
-                                                    }
-                                             ));
+                uploaded.Clear();
 
-                if (++filesInCurrentBatch == batchSize)
-                {
-                    totalSuccessfulUploads += await CreateMediateItemsBatch(localAlbumName, googleAlbum, uploaded);
-                    filesInCurrentBatch = 0;
-                    uploaded.Clear();
-                    m_Logger.LogInformation($"{totalSuccessfulUploads} of {localAlbumFiles.Count} uploaded.");
-                }
-            }
+                var batchBytes = batch.Sum(f => f.Bytes);
+                sw.Restart();
 
-            if (uploaded.Any())
+                await Parallel.ForEachAsync(
+                    batch.OrderBy(f => f.FileName), 
+                    new ParallelOptions { MaxDegreeOfParallelism = m_Settings.ParallelUploads }, 
+                    async (file, _) => 
+                    {
+                        m_Logger.LogDebug($"Uploading [{file.Bytes.AsHumanReadableBytes("KB")}] {file.ShortFilePath}");
+                        var uploadToken = await m_GooglePhotosApi.UploadFile(file.OpenStream(), file.MimeType);
+                        uploaded.Add(new UploadedFile(file, new BatchCreateMediaItemRequest
+                                                            {
+                                                                description = "",
+                                                                simpleMediaItem = new BatchCreateMediaItemRequest.MediaItem
+                                                                                  {
+                                                                                      uploadToken = uploadToken,
+                                                                                      fileName = file.FileName
+                                                                                  }
+                                                            }
+                                                     ));
+                        m_Logger.LogDebug($"Uploaded {file.ShortFilePath}");
+                    });
+
+                sw.Stop();
+                var bytesPerMS = batchBytes / sw.Elapsed.TotalMilliseconds;
+                m_Logger.LogDebug($"Uploaded {batchBytes}B in {sw.Elapsed.TotalMilliseconds} which is {bytesPerMS} B/Ms. Batch: {m_Settings.BatchSize}, Parallel: {m_Settings.ParallelUploads}.");
+
                 totalSuccessfulUploads += await CreateMediateItemsBatch(localAlbumName, googleAlbum, uploaded);
+                m_Logger.LogInformation($"{totalSuccessfulUploads} of {localAlbumFiles.Count} uploaded.");
+            }
 
             return totalSuccessfulUploads;
         }
