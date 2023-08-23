@@ -32,22 +32,26 @@ public class CollectionComparer
             {
                 collectionDiff.NeverSyncedAlbums.Add(localAlbum);
             }
-            else if (int.Parse(match.MediaItemsCount) != localAlbum.TotalFiles)
-            {
-                var photos = await LoadGoogleAlbumPhotos(match.Id, localAlbum.Name, int.Parse(match.MediaItemsCount));
-                var partial = new CollectionDiff.PartialSyncedAlbum(localAlbum, match, photos);
+            else 
+            { 
+                var googleItemsCount = match.MediaItemsCount == null ? 0 : int.Parse(match.MediaItemsCount);
+                if (googleItemsCount != localAlbum.TotalFiles)
+                {
+                    var photos = await LoadGoogleAlbumPhotos(match.Id, localAlbum.Name, googleItemsCount);
+                    var partial = new CollectionDiff.PartialSyncedAlbum(localAlbum, match, photos);
 
-                foreach (var extra in partial.ExtraPhotos)
-                    m_Logger.LogInformation("Extra Google File found: {name} in {album} [{mimeType}]", extra.Filename, localAlbum.Name, extra.MimeType);
+                    foreach (var extra in partial.ExtraPhotos)
+                        m_Logger.LogInformation("Extra Google File found: {name} in {album} [{mimeType}]", extra.Filename, localAlbum.Name, extra.MimeType);
 
-                if (partial.UnsyncedPhotos.Count > 0)
-                    collectionDiff.PartialSyncedAlbums.Add(partial);
+                    if (partial.UnsyncedPhotos.Count > 0)
+                        collectionDiff.PartialSyncedAlbums.Add(partial);
+                    else
+                        collectionDiff.SameAlbumsCount++;
+                }
                 else
+                {
                     collectionDiff.SameAlbumsCount++;
-            }
-            else
-            {
-                collectionDiff.SameAlbumsCount++;
+                }
             }
         }
 
