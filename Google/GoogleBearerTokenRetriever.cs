@@ -20,6 +20,9 @@ namespace GooglePhotoSync.Google
         private readonly string m_GoogleScope;
         private readonly ILogger<GoogleBearerTokenRetriever> m_Logger;
 
+        private static readonly object s_Locker = new object();
+        private bool m_IsRenewing;
+
         public GoogleBearerTokenRetriever(GoogleLogin googleLogin, IOptions<GoogleSettings> googleSettings, ILogger<GoogleBearerTokenRetriever> logger)
         {
             m_GoogleLogin = googleLogin;
@@ -67,8 +70,16 @@ namespace GooglePhotoSync.Google
             if (!m_IsInit)
                 throw new InvalidOperationException($"{GetType().Name} must be initialised before first usage. Ensure you call {nameof(Init)}() first");
 
-            if (m_CurrentAuthTokens.IsExpiring())
-            {
+            if (m_CurrentAuthTokens.IsExpiring() && !m_IsRenewing) // If IsRenewing, Keep using the expiring token for now
+            {               
+                lock (s_Locker)
+                {
+                    if (m_IsRenewing)                    
+                        return m_CurrentAuthTokens.AccessToken;
+                    
+                    m_IsRenewing = true;
+                }
+
                 m_Logger.LogInformation("Token Expiring...Refreshing Token...");
                 GoogleAuthState authState = null;
                 try
@@ -81,14 +92,16 @@ namespace GooglePhotoSync.Google
                     if (await InteractiveLogin())
                         return await Task.FromResult(m_CurrentAuthTokens.AccessToken);
 
+                    m_IsRenewing = false;
                     throw new TokenRenewalFailedException();
                 }
 
                 m_CurrentAuthTokens = GoogleAuthTokens.FromAuthState(authState, m_CurrentAuthTokens.RefreshToken); // On refreshing the token, the refresh_token will be null so persist the original
-                await SaveCachedToken(m_CurrentAuthTokens);
+                await SaveCachedToken(m_CurrentAuthTokens); 
+                m_IsRenewing = false;
             }
 
-            return await Task.FromResult(m_CurrentAuthTokens.AccessToken);
+            return m_CurrentAuthTokens.AccessToken;
         }
 
         private const string _TOKEN_CACHE_FILE_NAME = "tokencache";

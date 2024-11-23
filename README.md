@@ -20,6 +20,7 @@ Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in yo
 # TODO
 
 - Support larger files by resumable upload? https://developers.google.com/photos/library/guides/resumable-uploads
+    - "The suggested file size for images is less than 50 MB. Files above 50 MB are prone to performance issues."
 
 # Authentication
 
