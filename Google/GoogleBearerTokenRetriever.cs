@@ -1,12 +1,12 @@
-﻿using System;
+﻿using GooglePhotoSync.Google.Api;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using GooglePhotoSync.Google.Api;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace GooglePhotoSync.Google
 {
@@ -17,7 +17,7 @@ namespace GooglePhotoSync.Google
         private GoogleAuthTokens m_CurrentAuthTokens;
 
         private readonly GoogleLogin m_GoogleLogin;
-        private readonly string m_GoogleScope;
+        private readonly string[] m_GoogleScopes;
         private readonly ILogger<GoogleBearerTokenRetriever> m_Logger;
 
         private static readonly object s_Locker = new object();
@@ -26,7 +26,7 @@ namespace GooglePhotoSync.Google
         public GoogleBearerTokenRetriever(GoogleLogin googleLogin, IOptions<GoogleSettings> googleSettings, ILogger<GoogleBearerTokenRetriever> logger)
         {
             m_GoogleLogin = googleLogin;
-            m_GoogleScope = googleSettings.Value.GooglePhotoScope;
+            m_GoogleScopes = googleSettings.Value.GooglePhotoScopes;
             m_Logger = logger;
         }
 
@@ -52,7 +52,7 @@ namespace GooglePhotoSync.Google
         private async Task<bool> InteractiveLogin()
         {
             m_Logger.LogInformation("Requires Interactive authentication");
-            var authState = await m_GoogleLogin.DoOAuth(m_GoogleScope);
+            var authState = await m_GoogleLogin.DoOAuth(m_GoogleScopes);
             if (authState == null)
             {
                 m_Logger.LogError("Authentication Failed");
@@ -71,12 +71,12 @@ namespace GooglePhotoSync.Google
                 throw new InvalidOperationException($"{GetType().Name} must be initialised before first usage. Ensure you call {nameof(Init)}() first");
 
             if (m_CurrentAuthTokens.IsExpiring() && !m_IsRenewing) // If IsRenewing, Keep using the expiring token for now
-            {               
+            {
                 lock (s_Locker)
                 {
-                    if (m_IsRenewing)                    
+                    if (m_IsRenewing)
                         return m_CurrentAuthTokens.AccessToken;
-                    
+
                     m_IsRenewing = true;
                 }
 
@@ -97,7 +97,7 @@ namespace GooglePhotoSync.Google
                 }
 
                 m_CurrentAuthTokens = GoogleAuthTokens.FromAuthState(authState, m_CurrentAuthTokens.RefreshToken); // On refreshing the token, the refresh_token will be null so persist the original
-                await SaveCachedToken(m_CurrentAuthTokens); 
+                await SaveCachedToken(m_CurrentAuthTokens);
                 m_IsRenewing = false;
             }
 
