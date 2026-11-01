@@ -1,9 +1,9 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace GooglePhotoSync.Local
 {
@@ -18,7 +18,7 @@ namespace GooglePhotoSync.Local
 
         private int? m_TotalFiles;
         public int TotalFiles => m_TotalFiles ?? (m_TotalFiles = PhotoAlbums.Sum(a => a.TotalFiles)).Value;
-        
+
         private long? m_TotalBytes;
         public long TotalBytes => m_TotalBytes ?? (m_TotalBytes = PhotoAlbums.Sum(a => a.TotalBytes)).Value;
 
@@ -47,6 +47,8 @@ namespace GooglePhotoSync.Local
 
     public class LocalPhotoAlbum
     {
+        private const string THUMBS_DB = "Thumbs.db";
+
         private readonly DirectoryInfo m_Dir;
         private readonly LocalSettings m_LocalSettings;
         private readonly ILogger m_Logger;
@@ -54,7 +56,7 @@ namespace GooglePhotoSync.Local
         public string Name => m_Dir.Name;
         public List<LocalFile> Files { get; }
         public List<LocalFile> FilesTooLarge { get; }
-        
+
         public int TotalFiles => Files.Count;
 
         private long? m_TotalBytes;
@@ -67,16 +69,16 @@ namespace GooglePhotoSync.Local
             m_Logger = logger;
 
             var supportedFiles = m_Dir.EnumerateFiles()
-                             .Where(IsSupportedFileType) 
+                             .Where(IsSupportedFileType)
                              .ToList();
 
             Files = supportedFiles
-                   .Where(IsWithinFileSize) 
+                   .Where(IsWithinFileSize)
                    .Select(f => new LocalFile(f, localSettings, this))
                    .ToList();
-            
+
             FilesTooLarge = supportedFiles
-                           .Where(f => !IsWithinFileSize(f)) 
+                           .Where(f => !IsWithinFileSize(f))
                            .Select(f => new LocalFile(f, localSettings, this))
                            .ToList();
         }
@@ -85,11 +87,16 @@ namespace GooglePhotoSync.Local
         {
             var isSupported = m_LocalSettings.ImageExtensions.Any(e => string.Compare(e, file.Extension, StringComparison.CurrentCultureIgnoreCase) == 0) ||
                    m_LocalSettings.VideoExtensions.Any(e => string.Compare(e, file.Extension, StringComparison.CurrentCultureIgnoreCase) == 0);
-            
-            if (!isSupported)
+
+            if (isSupported)
+                return true;
+
+            if (file.Name == THUMBS_DB)
+                m_Logger.LogDebug("Unsupported File {ext} Skipped: {name} [{size}]", file.Extension, file.FullName, file.Length.AsHumanReadableBytes("MB"));
+            else
                 m_Logger.LogInformation("Unsupported File {ext} Skipped: {name} [{size}]", file.Extension, file.FullName, file.Length.AsHumanReadableBytes("MB"));
-            
-            return isSupported;
+
+            return false;
         }
 
         private bool IsWithinFileSize(FileInfo file)
