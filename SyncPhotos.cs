@@ -43,6 +43,9 @@ namespace GooglePhotoSync
 
             if (settings.Value.ParallelUploads <= 0)
                 throw new InvalidOperationException($"{nameof(SyncSettings.ParallelUploads)} must be greater than 0.");
+
+            if (settings.Value.UploadRetries < 0)
+                throw new InvalidOperationException($"{nameof(SyncSettings.UploadRetries)} must not be negative.");
         }
 
         public async Task Sync()

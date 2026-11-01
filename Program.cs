@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 
 namespace GooglePhotoSync
 {
-    // ReSharper disable once ClassNeverInstantiated.Global
     internal class Program
     {
         public static async Task Main(string[] args)
@@ -24,7 +23,6 @@ namespace GooglePhotoSync
                                           builder.AddConfiguration(configuration.GetSection("Logging"));
                                           builder.AddConsole();
                                       })
-                          //.AddSingleton<GoogleSettings>()
                           .AddTransient<SyncPhotos>()
 
                           .AddSingleton<GoogleLogin>()
@@ -38,18 +36,19 @@ namespace GooglePhotoSync
                           .AddTransient<CollectionComparer>()
                           .AddTransient<CollectionSync>()
                           .AddTransient<AlbumSync>()
-                          .ConfigureSettings<SyncSettings>(configuration)
-                          //.AddSingleton<Func<AlbumSync>>(sp => sp.GetService<AlbumSync>)
                           ;
 
             var googleSettings = services.ConfigureAndGet<GoogleSettings>(configuration);
+            var syncSettings = services.ConfigureAndGet<SyncSettings>(configuration);
 
             services.AddRefitClient<IGooglePhotosApi>()
                     .ConfigureHttpClient((_, c) =>
                         {
                             c.BaseAddress = new Uri(googleSettings.GooglePhotosApiBaseUrl);
-                            c.Timeout = TimeSpan.FromMinutes(3);
+                            c.Timeout = GooglePhotosApiResilience.GetHttpClientBackstopTimeout(syncSettings.UploadRetries);
                         })
+                    // Before the auth handler so it is the outer handler: each retry attempt gets a current bearer token.
+                    .AddGooglePhotosResilience(syncSettings.UploadRetries)
                     .AddHttpMessageHandler<AuthenticatedHttpClientHandler>();
 
             services.AddRefitClient<IAuthToken>()
