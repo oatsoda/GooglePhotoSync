@@ -92,7 +92,7 @@ namespace GooglePhotoSync.Local
                 return true;
 
             if (file.Name == THUMBS_DB)
-                m_Logger.LogDebug("Unsupported File {ext} Skipped: {name} [{size}]", file.Extension, file.FullName, file.Length.AsHumanReadableBytes("MB"));
+                m_Logger.LogTrace("Unsupported File {ext} Skipped: {name} [{size}]", file.Extension, file.FullName, file.Length.AsHumanReadableBytes("MB"));
             else
                 m_Logger.LogInformation("Unsupported File {ext} Skipped: {name} [{size}]", file.Extension, file.FullName, file.Length.AsHumanReadableBytes("MB"));
 
