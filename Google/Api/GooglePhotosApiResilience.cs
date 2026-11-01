@@ -3,6 +3,7 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using Polly;
 using System;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -15,7 +16,12 @@ namespace GooglePhotoSync.Google.Api
     {
         private static readonly TimeSpan s_AttemptTimeout = TimeSpan.FromMinutes(3);
         private static readonly TimeSpan s_RetryBaseDelay = TimeSpan.FromSeconds(2);
-        private static readonly TimeSpan s_MaxRetryDelay = TimeSpan.FromSeconds(60);
+        // Google requires at least 30s before retrying a 429, with exponential backoff from there.
+        private static readonly TimeSpan s_TooManyRequestsBaseDelay = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan s_TooManyRequestsMaxJitter = TimeSpan.FromSeconds(5);
+        // Upper bound for every retry delay, including 429 backoff and Retry-After. Enforced in GetRetryDelay rather than
+        // relying on Polly's MaxDelay, so the backstop timeout calculation is exact.
+        private static readonly TimeSpan s_MaxRetryDelay = TimeSpan.FromMinutes(2);
 
         /// <summary>
         /// Adds a resilience handler that retries transient upload failures and applies a per-attempt timeout to all calls.
@@ -53,7 +59,9 @@ namespace GooglePhotoSync.Google.Api
                     UseJitter = true,
                     Delay = s_RetryBaseDelay,
                     MaxDelay = s_MaxRetryDelay,
-                    ShouldRetryAfterHeader = true,
+                    // Must be set before DelayGenerator: its setter replaces DelayGenerator. Retry-After is handled in GetRetryDelay.
+                    ShouldRetryAfterHeader = false,
+                    DelayGenerator = args => ValueTask.FromResult(GetRetryDelay(args.Outcome.Result, args.AttemptNumber)),
                     // 408, 429, 5xx, HttpRequestException and per-attempt timeouts - but only for uploads.
                     ShouldHandle = args => ValueTask.FromResult(IsUpload(args.Context.GetRequestMessage()) &&
                                                                 HttpClientResiliencePredicates.IsTransient(args.Outcome)),
@@ -72,6 +80,37 @@ namespace GooglePhotoSync.Google.Api
             // Per attempt, so a slow upload that times out can still be retried.
             pipeline.AddTimeout(s_AttemptTimeout);
         }
+
+        /// <summary>
+        /// Delay before the next retry, or null to use the default exponential backoff (2s base, with jitter).
+        /// - 429: at least 30s, doubling per attempt (30s, 60s, 120s...) plus jitter, or Retry-After if that is longer.
+        /// - Other responses: Retry-After if Google sent one.
+        /// All delays are capped at s_MaxRetryDelay.
+        /// </summary>
+        private static TimeSpan? GetRetryDelay(HttpResponseMessage response, int attemptNumber)
+        {
+            var retryAfter = GetRetryAfter(response);
+
+            if (response?.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                var backoff = s_TooManyRequestsBaseDelay * Math.Pow(2, attemptNumber)
+                            + s_TooManyRequestsMaxJitter * Random.Shared.NextDouble();
+                return Cap(retryAfter is { } ra && ra > backoff ? ra : backoff);
+            }
+
+            return retryAfter is { } delay ? Cap(delay) : null;
+        }
+
+        private static TimeSpan? GetRetryAfter(HttpResponseMessage response)
+        {
+            if (response?.Headers.RetryAfter is not { } retryAfter)
+                return null;
+
+            var delay = retryAfter.Delta ?? (retryAfter.Date - DateTimeOffset.UtcNow);
+            return delay > TimeSpan.Zero ? delay : null;
+        }
+
+        private static TimeSpan Cap(TimeSpan delay) => delay < s_MaxRetryDelay ? delay : s_MaxRetryDelay;
 
         private static bool IsUpload(HttpRequestMessage request) =>
             request?.Method == HttpMethod.Post &&
