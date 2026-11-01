@@ -1,7 +1,10 @@
-﻿using GooglePhotoSync.Google.Api;
+﻿using GooglePhotoSync.Google;
+using GooglePhotoSync.Google.Api;
 using GooglePhotoSync.Local;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -12,12 +15,14 @@ namespace GooglePhotoSync.Sync
     public class AlbumSync
     {
         private readonly IGooglePhotosApi m_GooglePhotosApi;
+        private readonly GooglePhotosUploader m_Uploader;
         private readonly SyncSettings m_Settings;
         private readonly ILogger<AlbumSync> m_Logger;
 
-        public AlbumSync(IGooglePhotosApi googlePhotosApi, IOptions<SyncSettings> settings, ILogger<AlbumSync> logger)
+        public AlbumSync(IGooglePhotosApi googlePhotosApi, GooglePhotosUploader uploader, IOptions<SyncSettings> settings, ILogger<AlbumSync> logger)
         {
             m_GooglePhotosApi = googlePhotosApi;
+            m_Uploader = uploader;
             m_Settings = settings.Value;
             m_Logger = logger;
         }
@@ -28,7 +33,7 @@ namespace GooglePhotoSync.Sync
 
             return await SyncFiles(local.Name, local.Files, album);
         }
-        
+
         public async Task<int> SyncPartialAlbum(CollectionDiff.PartialSyncedAlbum partial)
         {
             return await SyncFiles(partial.Local.Name, partial.UnsyncedPhotos, partial.Google);
@@ -38,17 +43,17 @@ namespace GooglePhotoSync.Sync
         {
             m_Logger.LogDebug($"Creating album '{albumName}'");
             return await m_GooglePhotosApi.CreateAlbum(new PostAlbumRequest
-                                                       {
-                                                           album = new PostAlbumRequest.NewAlbum
-                                                                   {
-                                                                       title = albumName
-                                                                   }
-                                                       });
+            {
+                album = new PostAlbumRequest.NewAlbum
+                {
+                    title = albumName
+                }
+            });
         }
 
         private async Task<int> SyncFiles(string localAlbumName, List<LocalFile> localAlbumFiles, GoogleAlbum googleAlbum)
         {
-            var uploaded = new List<UploadedFile>(m_Settings.BatchSize);
+            var uploaded = new ConcurrentBag<UploadedFile>();
 
             var totalSuccessfulUploads = 0;
             var sw = new Stopwatch();
@@ -61,21 +66,35 @@ namespace GooglePhotoSync.Sync
                 sw.Restart();
 
                 await Parallel.ForEachAsync(
-                    batch.OrderBy(f => f.FileName), 
-                    new ParallelOptions { MaxDegreeOfParallelism = m_Settings.ParallelUploads }, 
-                    async (file, _) => 
+                    batch.OrderBy(f => f.FileName),
+                    new ParallelOptions { MaxDegreeOfParallelism = m_Settings.ParallelUploads },
+                    async (file, cancellationToken) =>
                     {
                         m_Logger.LogDebug($"Uploading [{file.Bytes.AsHumanReadableBytes("KB")}] {file.ShortFilePath}");
-                        var uploadToken = await m_GooglePhotosApi.UploadFile(file.OpenStream(), file.MimeType);
+
+                        string uploadToken;
+                        try
+                        {
+                            // Raw or resumable depending on size; transient failures are retried / resumed inside.
+                            uploadToken = await m_Uploader.Upload(file, cancellationToken);
+                        }
+                        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+                        {
+                            // Retries / resumes exhausted (or a non-transient error). Don't fail the whole batch - the other files
+                            // can still be added. This one will be picked up on the next sync.
+                            m_Logger.LogError("Failed to upload {file}, skipping: {error}", file.ShortFilePath, ex.Message);
+                            return;
+                        }
+
                         uploaded.Add(new UploadedFile(file, new BatchCreateMediaItemRequest
-                                                            {
-                                                                description = "",
-                                                                simpleMediaItem = new BatchCreateMediaItemRequest.MediaItem
-                                                                                  {
-                                                                                      uploadToken = uploadToken,
-                                                                                      fileName = file.FileName
-                                                                                  }
-                                                            }
+                        {
+                            description = "",
+                            simpleMediaItem = new BatchCreateMediaItemRequest.MediaItem
+                            {
+                                uploadToken = uploadToken,
+                                fileName = file.FileName
+                            }
+                        }
                                                      ));
                         m_Logger.LogDebug($"Uploaded {file.ShortFilePath}");
                     });
@@ -84,6 +103,9 @@ namespace GooglePhotoSync.Sync
                 var bytesPerMS = batchBytes / sw.Elapsed.TotalMilliseconds;
                 m_Logger.LogDebug($"Uploaded {batchBytes}B in {sw.Elapsed.TotalMilliseconds} which is {bytesPerMS} B/Ms. Batch: {m_Settings.BatchSize}, Parallel: {m_Settings.ParallelUploads}.");
 
+                if (uploaded.IsEmpty)
+                    continue;
+
                 totalSuccessfulUploads += await CreateMediateItemsBatch(localAlbumName, googleAlbum, uploaded);
                 m_Logger.LogInformation($"{totalSuccessfulUploads} of {localAlbumFiles.Count} uploaded.");
             }
@@ -91,20 +113,19 @@ namespace GooglePhotoSync.Sync
             return totalSuccessfulUploads;
         }
 
-        private async Task<int> CreateMediateItemsBatch(string localAlbumName, GoogleAlbum googleAlbum, List<UploadedFile> uploaded)
+        private async Task<int> CreateMediateItemsBatch(string localAlbumName, GoogleAlbum googleAlbum, IReadOnlyCollection<UploadedFile> uploaded)
         {
             m_Logger.LogDebug($"Creating {uploaded.Count} media items in {localAlbumName} [{googleAlbum.Id}]");
             var response = await m_GooglePhotosApi.BatchCreateMediaItems(new BatchCreateMediaItemsRequest
-                                                                         {
-                                                                             albumId = googleAlbum.Id,
-                                                                             newMediaItems = uploaded.Select(u => u.CreateMediaItem).ToList()
-                                                                         }
-                                                                        );
+            {
+                albumId = googleAlbum.Id,
+                newMediaItems = uploaded.Select(u => u.CreateMediaItem).ToList()
+            });
 
             var failures = response.newMediaItemResults.Where(r => r.status.message != "Success" && r.status.message != "OK").ToList();
             var success = response.newMediaItemResults.Count - failures.Count;
 
-            if (failures.Any())
+            if (failures.Count > 0)
             {
                 // TODO: Retry, handling?
                 foreach (var failure in failures)
@@ -113,7 +134,7 @@ namespace GooglePhotoSync.Sync
                     m_Logger.LogWarning($"Failure uploading {upload.LocalFile.FileName}: {failure.status.message} [{failure.status.code}]");
                 }
             }
-            
+
             m_Logger.LogDebug($"Successfully uploaded {success} media items in {localAlbumName} [{googleAlbum.Id}]");
             return success;
         }

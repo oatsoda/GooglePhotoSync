@@ -17,12 +17,11 @@ Album Name 2/photo2_021211_130100.jpg
 # Local development
 Copy `appsettings.Example.json` to `appsettings.Development.json` and plug in your settings.
 
-# TODO
+# Large files
 
-- Refit is using Refit.Reflection as the API Interface has some source-generator incompatible things. Fix these up.
-
-- Support larger files by resumable upload? https://developers.google.com/photos/library/guides/resumable-uploads
-    - "The suggested file size for images is less than 50 MB. Files above 50 MB are prone to performance issues."
+- `LocalSettings:MaxFileSizeMB` - files larger than this are not uploaded (set it high to upload everything).
+- `GoogleSettings:ResumableUploadThresholdMB` - files larger than this use [resumable upload](https://developers.google.com/photos/library/guides/resumable-uploads), in chunks of `GoogleSettings:ResumableUploadChunkSizeMB`. Google suggests images under 50 MB, as larger files are "prone to performance issues".
+- Files over Google Photos' own limits (200 MB photos, 20 GB videos) are always skipped.
 
 # Authentication
 
