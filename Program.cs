@@ -41,7 +41,7 @@ namespace GooglePhotoSync
             var googleSettings = services.ConfigureAndGet<GoogleSettings>(configuration);
             var syncSettings = services.ConfigureAndGet<SyncSettings>(configuration);
 
-            services.AddRefitClient<IGooglePhotosApi>()
+            services.AddRefitGeneratedClient<IGooglePhotosApi>()
                     .ConfigureHttpClient((_, c) =>
                         {
                             c.BaseAddress = new Uri(googleSettings.GooglePhotosApiBaseUrl);
@@ -51,7 +51,7 @@ namespace GooglePhotoSync
                     .AddGooglePhotosResilience(syncSettings.UploadRetries)
                     .AddHttpMessageHandler<AuthenticatedHttpClientHandler>();
 
-            services.AddRefitClient<IAuthToken>()
+            services.AddRefitGeneratedClient<IAuthToken>()
                     .ConfigureHttpClient((_, c) => c.BaseAddress = new Uri(googleSettings.GoogleTokenUrl));
 
             var sync = services.BuildServiceProvider().GetRequiredService<SyncPhotos>();
