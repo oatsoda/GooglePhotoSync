@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using GooglePhotoSync.Google;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
@@ -70,16 +71,15 @@ namespace GooglePhotoSync.Local
 
             var supportedFiles = m_Dir.EnumerateFiles()
                              .Where(IsSupportedFileType)
+                             .Select(f => new LocalFile(f, localSettings, this))
                              .ToList();
 
             Files = supportedFiles
-                   .Where(IsWithinFileSize)
-                   .Select(f => new LocalFile(f, localSettings, this))
+                   .Where(f => IsWithinFileSize(f) && IsWithinGoogleLimit(f))
                    .ToList();
 
             FilesTooLarge = supportedFiles
-                           .Where(f => !IsWithinFileSize(f))
-                           .Select(f => new LocalFile(f, localSettings, this))
+                           .Except(Files)
                            .ToList();
         }
 
@@ -99,15 +99,28 @@ namespace GooglePhotoSync.Local
             return false;
         }
 
-        private bool IsWithinFileSize(FileInfo file)
+        /// <summary>User-configured limit, to opt out of uploading large files.</summary>
+        private bool IsWithinFileSize(LocalFile file)
         {
-            // TODO: Temp size filter - think large files need splitting
-            var isUnderMax = file.Length <= m_LocalSettings.MaxFileSizeBytes;
+            var isUnderMax = file.Bytes <= m_LocalSettings.MaxFileSizeBytes;
 
             if (!isUnderMax)
-                m_Logger.LogInformation("Large file Skipped: {name} [{size}]", file.FullName, file.Length.AsHumanReadableBytes("MB"));
+                m_Logger.LogInformation("Large file Skipped: {name} [{size}]", file.FilePath, file.Bytes.AsHumanReadableBytes("MB"));
 
             return isUnderMax;
+        }
+
+        /// <summary>Google Photos' own maximum sizes - larger files would be rejected.</summary>
+        private bool IsWithinGoogleLimit(LocalFile file)
+        {
+            var limit = file.IsVideo ? GooglePhotosLimits.MaxVideoBytes : GooglePhotosLimits.MaxImageBytes;
+            var isUnderLimit = file.Bytes <= limit;
+
+            if (!isUnderLimit)
+                m_Logger.LogWarning("File exceeds Google Photos' {type} size limit of {limit}, Skipped: {name} [{size}]",
+                                    file.IsVideo ? "video" : "photo", limit.AsHumanReadableBytes("MB"), file.FilePath, file.Bytes.AsHumanReadableBytes("MB"));
+
+            return isUnderLimit;
         }
 
     }

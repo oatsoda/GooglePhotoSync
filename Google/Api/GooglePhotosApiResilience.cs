@@ -3,6 +3,7 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using Polly;
 using System;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -112,8 +113,18 @@ namespace GooglePhotoSync.Google.Api
 
         private static TimeSpan Cap(TimeSpan delay) => delay < s_MaxRetryDelay ? delay : s_MaxRetryDelay;
 
+        /// <summary>
+        /// Raw uploads and the resumable 'start' / 'query' commands, which are safe to resend.
+        /// Resumable chunk requests ('upload' / 'upload, finalize') are excluded: after a failure Google may have stored part
+        /// of the chunk, so the upload must continue from the offset it reports. GooglePhotosUploader handles that.
+        /// </summary>
         private static bool IsUpload(HttpRequestMessage request) =>
             request?.Method == HttpMethod.Post &&
-            request.RequestUri?.AbsolutePath.TrimEnd('/') == "/v1/uploads";
+            request.RequestUri?.AbsolutePath.TrimEnd('/') == "/v1/uploads" &&
+            !IsResumableChunk(request);
+
+        private static bool IsResumableChunk(HttpRequestMessage request) =>
+            request.Headers.TryGetValues("X-Goog-Upload-Command", out var commands) &&
+            commands.Any(c => c.Contains("upload", StringComparison.OrdinalIgnoreCase));
     }
 }

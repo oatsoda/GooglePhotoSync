@@ -41,15 +41,19 @@ namespace GooglePhotoSync
             var googleSettings = services.ConfigureAndGet<GoogleSettings>(configuration);
             var syncSettings = services.ConfigureAndGet<SyncSettings>(configuration);
 
-            services.AddRefitGeneratedClient<IGooglePhotosApi>()
-                    .ConfigureHttpClient((_, c) =>
-                        {
-                            c.BaseAddress = new Uri(googleSettings.GooglePhotosApiBaseUrl);
-                            c.Timeout = GooglePhotosApiResilience.GetHttpClientBackstopTimeout(syncSettings.UploadRetries);
-                        })
-                    // Before the auth handler so it is the outer handler: each retry attempt gets a current bearer token.
-                    .AddGooglePhotosResilience(syncSettings.UploadRetries)
-                    .AddHttpMessageHandler<AuthenticatedHttpClientHandler>();
+            // Refit API and the uploader's raw HttpClient (resumable uploads) share the same configuration.
+            void ConfigureGooglePhotosClient(IHttpClientBuilder builder) =>
+                builder.ConfigureHttpClient((_, c) =>
+                           {
+                               c.BaseAddress = new Uri(googleSettings.GooglePhotosApiBaseUrl);
+                               c.Timeout = GooglePhotosApiResilience.GetHttpClientBackstopTimeout(syncSettings.UploadRetries);
+                           })
+                       // Before the auth handler so it is the outer handler: each retry attempt gets a current bearer token.
+                       .AddGooglePhotosResilience(syncSettings.UploadRetries)
+                       .AddHttpMessageHandler<AuthenticatedHttpClientHandler>();
+
+            ConfigureGooglePhotosClient(services.AddRefitGeneratedClient<IGooglePhotosApi>());
+            ConfigureGooglePhotosClient(services.AddHttpClient<GooglePhotosUploader>());
 
             services.AddRefitGeneratedClient<IAuthToken>()
                     .ConfigureHttpClient((_, c) => c.BaseAddress = new Uri(googleSettings.GoogleTokenUrl));

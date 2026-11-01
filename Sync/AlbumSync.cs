@@ -1,4 +1,5 @@
-﻿using GooglePhotoSync.Google.Api;
+﻿using GooglePhotoSync.Google;
+using GooglePhotoSync.Google.Api;
 using GooglePhotoSync.Local;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,12 +15,14 @@ namespace GooglePhotoSync.Sync
     public class AlbumSync
     {
         private readonly IGooglePhotosApi m_GooglePhotosApi;
+        private readonly GooglePhotosUploader m_Uploader;
         private readonly SyncSettings m_Settings;
         private readonly ILogger<AlbumSync> m_Logger;
 
-        public AlbumSync(IGooglePhotosApi googlePhotosApi, IOptions<SyncSettings> settings, ILogger<AlbumSync> logger)
+        public AlbumSync(IGooglePhotosApi googlePhotosApi, GooglePhotosUploader uploader, IOptions<SyncSettings> settings, ILogger<AlbumSync> logger)
         {
             m_GooglePhotosApi = googlePhotosApi;
+            m_Uploader = uploader;
             m_Settings = settings.Value;
             m_Logger = logger;
         }
@@ -65,22 +68,20 @@ namespace GooglePhotoSync.Sync
                 await Parallel.ForEachAsync(
                     batch.OrderBy(f => f.FileName),
                     new ParallelOptions { MaxDegreeOfParallelism = m_Settings.ParallelUploads },
-                    async (file, _) =>
+                    async (file, cancellationToken) =>
                     {
                         m_Logger.LogDebug($"Uploading [{file.Bytes.AsHumanReadableBytes("KB")}] {file.ShortFilePath}");
 
                         string uploadToken;
                         try
                         {
-                            // Transient failures are retried by the resilience handler (see Program.ConfigureResilience).
-                            // The FileStream is seekable, so StreamContent rewinds it for each attempt.
-                            using var stream = file.OpenStream();
-                            uploadToken = await m_GooglePhotosApi.UploadFile(stream, file.MimeType);
+                            // Raw or resumable depending on size; transient failures are retried / resumed inside.
+                            uploadToken = await m_Uploader.Upload(file, cancellationToken);
                         }
-                        catch (Exception ex)
+                        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                         {
-                            // Retries exhausted (or a non-transient error). Don't fail the whole batch - the other files can
-                            // still be added. This one will be picked up on the next sync.
+                            // Retries / resumes exhausted (or a non-transient error). Don't fail the whole batch - the other files
+                            // can still be added. This one will be picked up on the next sync.
                             m_Logger.LogError("Failed to upload {file}, skipping: {error}", file.ShortFilePath, ex.Message);
                             return;
                         }
