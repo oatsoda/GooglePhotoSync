@@ -31,7 +31,7 @@ namespace GooglePhotoSync
                           .AddTransient<AuthenticatedHttpClientHandler>()
                           .AddSingleton<GoogleBearerTokenRetriever>()
                           .AddTransient<GoogleSource>()
-                
+
                           .ConfigureSettings<LocalSettings>(configuration)
                           .AddTransient<LocalSource>()
 
@@ -41,21 +41,21 @@ namespace GooglePhotoSync
                           .ConfigureSettings<SyncSettings>(configuration)
                           //.AddSingleton<Func<AlbumSync>>(sp => sp.GetService<AlbumSync>)
                           ;
-                          
+
             var googleSettings = services.ConfigureAndGet<GoogleSettings>(configuration);
 
             services.AddRefitClient<IGooglePhotosApi>()
-                    .ConfigureHttpClient((_, c) => 
-                        { 
+                    .ConfigureHttpClient((_, c) =>
+                        {
                             c.BaseAddress = new Uri(googleSettings.GooglePhotosApiBaseUrl);
-                            c.Timeout = TimeSpan.FromMinutes(3); 
+                            c.Timeout = TimeSpan.FromMinutes(3);
                         })
                     .AddHttpMessageHandler<AuthenticatedHttpClientHandler>();
 
             services.AddRefitClient<IAuthToken>()
                     .ConfigureHttpClient((_, c) => c.BaseAddress = new Uri(googleSettings.GoogleTokenUrl));
 
-            var sync =  services.BuildServiceProvider().GetRequiredService<SyncPhotos>();
+            var sync = services.BuildServiceProvider().GetRequiredService<SyncPhotos>();
             await sync.Sync();
         }
 
@@ -76,14 +76,14 @@ namespace GooglePhotoSync
 
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection ConfigureSettings<T>(this IServiceCollection services, IConfiguration configuration) where T : class 
+        public static IServiceCollection ConfigureSettings<T>(this IServiceCollection services, IConfiguration configuration) where T : class
         {
             var settings = configuration.GetRequiredSection(typeof(T).Name);
             services.Configure<T>(settings);
             return services;
         }
 
-        public static T ConfigureAndGet<T>(this IServiceCollection services, IConfiguration configuration) where T : class 
+        public static T ConfigureAndGet<T>(this IServiceCollection services, IConfiguration configuration) where T : class
         {
             var settings = configuration.GetRequiredSection(typeof(T).Name);
             services.Configure<T>(settings);
